@@ -1,0 +1,6 @@
+{
+  "name": "KrishiMitra",
+  "description": "KrishiMitra: Your Farming Friend. A multilingual smart farming app helping farmers detect crop problems through photos/voice, receive solutions, check weather forecasts, find nearby agriculture shops, and connect directly with agriculture experts.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
