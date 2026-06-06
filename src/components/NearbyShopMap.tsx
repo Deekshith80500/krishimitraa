@@ -285,15 +285,46 @@ function getDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number)
   return Number(d.toFixed(1));
 }
 
-export default function NearbyShopMap({ activeLang = "en" }: { activeLang?: string }) {
+interface NearbyShopMapProps {
+  activeLang?: string;
+  initialFarmerCoords?: { lat: number; lng: number };
+  farmerLocationName?: string;
+  onLocationDetected?: (coords: { lat: number; lng: number }, name: string) => void;
+}
+
+export default function NearbyShopMap({
+  activeLang = "en",
+  initialFarmerCoords,
+  farmerLocationName,
+  onLocationDetected
+}: NearbyShopMapProps) {
   const currentLang = SHOP_TRANSLATIONS[activeLang] ? activeLang : "en";
   const t = (key: string) => SHOP_TRANSLATIONS[currentLang][key] || SHOP_TRANSLATIONS["en"][key] || key;
 
   // Farmer's location
-  const [farmerCoords, setFarmerCoords] = useState<{ lat: number; lng: number }>({
-    lat: 16.3067,
-    lng: 80.4365
+  const [farmerCoords, setFarmerCoords] = useState<{ lat: number; lng: number }>(() => {
+    if (initialFarmerCoords) {
+      return initialFarmerCoords;
+    }
+    return {
+      lat: 16.3067,
+      lng: 80.4365
+    };
   });
+
+  // Sync prop changes dynamically when location changes in the dashboard
+  useEffect(() => {
+    if (initialFarmerCoords) {
+      setFarmerCoords(initialFarmerCoords);
+    }
+  }, [initialFarmerCoords?.lat, initialFarmerCoords?.lng]);
+
+  // Automatically trigger location tracking on mount to track precise location without user reload/clicks
+  useEffect(() => {
+    if (navigator.geolocation) {
+      handleDetectGPS();
+    }
+  }, []);
   const [locationStatus, setLocationStatus] = useState<"idle" | "detecting" | "success" | "error">("idle");
   const [locationMessage, setLocationMessage] = useState<string>("");
 
@@ -322,14 +353,37 @@ export default function NearbyShopMap({ activeLang = "en" }: { activeLang?: stri
 
     setLocationStatus("detecting");
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
         const newCoords = {
-          lat: Number(position.coords.latitude.toFixed(6)),
-          lng: Number(position.coords.longitude.toFixed(6))
+          lat: Number(lat.toFixed(6)),
+          lng: Number(lng.toFixed(6))
         };
+        
+        // Reverse geocoding to get City/Locality name
+        let placeName = `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
+        try {
+          const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${activeLang || "en"}`);
+          if (response.ok) {
+            const data = await response.json();
+            const city = data.city || data.locality || data.principalSubdivision || "";
+            const country = data.countryName || "";
+            if (city) {
+              placeName = `${city}${country ? `, ${country}` : ""}`;
+            }
+          }
+        } catch (err) {
+          console.warn("Failed reverse geocoding in shop map:", err);
+        }
+
         setFarmerCoords(newCoords);
         setLocationStatus("success");
         setLocationMessage(`${t("gpsSuccess")}: ${newCoords.lat}° N, ${newCoords.lng}° E`);
+        
+        if (onLocationDetected) {
+          onLocationDetected(newCoords, placeName);
+        }
       },
       (error) => {
         console.warn("GPS Location error", error);
@@ -345,6 +399,15 @@ export default function NearbyShopMap({ activeLang = "en" }: { activeLang?: stri
     center: { lat: number; lng: number },
     category: "seeds" | "fertilizer" | "pesticide" | "tools" | "nursery"
   ): UnifiedShop[] => {
+    // Determine realistic location suffix based on the farmer's location name
+    const cleanLocation = (() => {
+      if (!farmerLocationName) return "Local Agricultural Hub";
+      if (farmerLocationName.includes("My Location")) {
+        return "Local Farm Zone";
+      }
+      return farmerLocationName.replace(/\(|\)/g, "").trim();
+    })();
+
     // Generate 3 nearby shops mathematically distributed around center
     const shopTemplates = {
       seeds: [
@@ -388,7 +451,7 @@ export default function NearbyShopMap({ activeLang = "en" }: { activeLang?: stri
         name: tmpl.name,
         lat: sLat,
         lng: sLng,
-        address: `${Math.round(dist * 80)}m near Highway Lane, Sub-district Hub, Agricultural Belt`,
+        address: `${Math.round(dist * 100)}m off Main Bypass Road, ${cleanLocation}`,
         phone: tmpl.phone,
         rating: tmpl.rating,
         distanceKm: dist,
@@ -451,6 +514,26 @@ export default function NearbyShopMap({ activeLang = "en" }: { activeLang?: stri
 
   return (
     <div className="bg-slate-50 rounded-2xl p-4 sm:p-6 border border-slate-200/80 space-y-6" id="gmp_shop_locator_container">
+      {/* Farmer location info panel */}
+      <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 text-xs flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-xs" id="farmer_location_indicator_shops">
+        <div className="flex items-center gap-2.5">
+          <div className="bg-emerald-100 p-2 rounded-xl text-emerald-800 shrink-0">
+            <MapPin className="w-5 h-5 text-emerald-600 animate-bounce" />
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[9px] uppercase font-extrabold tracking-wider">Farmer's Current Location</span>
+            <span className="font-extrabold text-slate-800 text-sm">
+              {farmerLocationName || "Detecting Location..."}
+            </span>
+          </div>
+        </div>
+        <div className="text-left sm:text-right text-[10px] bg-white p-2 px-3 rounded-xl border border-emerald-100/50 font-mono text-slate-600">
+          <span className="font-bold">Lat:</span> {farmerCoords.lat.toFixed(4) ?? "0.0000"}° N
+          <span className="mx-2 font-sans text-slate-300">|</span>
+          <span className="font-bold">Lng:</span> {farmerCoords.lng.toFixed(4) ?? "0.0000"}° E
+        </div>
+      </div>
+
       {/* Category selector */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
@@ -660,7 +743,7 @@ export default function NearbyShopMap({ activeLang = "en" }: { activeLang?: stri
                   className="rounded-xl overflow-hidden"
                 >
                   {/* Farmer Current Marker Pin */}
-                  <AdvancedMarker position={farmerCoords} title="My Farm Field">
+                  <AdvancedMarker position={farmerCoords} title={farmerLocationName || "My Farm Field"}>
                     <Pin background="#2563EB" glyphColor="#ffffff" scale={1.1} />
                   </AdvancedMarker>
 
@@ -713,12 +796,12 @@ export default function NearbyShopMap({ activeLang = "en" }: { activeLang?: stri
                 </svg>
 
                 {/* Farmer marker placement */}
-                <div className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10" style={{ left: "20%", top: "75%" }}>
+                <div className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 max-w-[150px]" style={{ left: "20%", top: "75%" }}>
                   <div className="bg-blue-600 text-white p-2 rounded-full border-4 border-white shadow-md animate-pulse">
                     <MapPin className="w-4 h-4" />
                   </div>
-                  <span className="text-[9px] font-black bg-blue-50 text-blue-900 border border-blue-100 px-1.5 py-0.5 rounded mt-1 shadow-xxs">
-                    My Farm Field
+                  <span className="text-[9px] font-black bg-blue-50 text-blue-900 border border-blue-100 px-1.5 py-0.5 rounded mt-1 shadow-xxs truncate text-center block w-full">
+                    📍 {farmerLocationName || "My Farm Field"}
                   </span>
                 </div>
 

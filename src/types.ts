@@ -66,6 +66,15 @@ export interface Appointment {
   notes?: string;
 }
 
+export interface MitraQueryAttempt {
+  id: string;
+  query: string;
+  solutionText: string;
+  audioBytes?: string;
+  timestamp: string;
+  languageSelected: string;
+}
+
 export interface WeatherData {
   city: string;
   temp: number;

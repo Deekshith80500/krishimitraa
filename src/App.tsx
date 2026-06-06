@@ -31,10 +31,14 @@ import {
   CornerDownRight,
   Send,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  MessageSquare,
+  Bot
 } from "lucide-react";
 import { LANGUAGES, TRANSLATIONS } from "./languageData";
 import NearbyShopMap from "./components/NearbyShopMap";
+// @ts-ignore
+import aiFarmerShakingImg from "./assets/images/ai_farmer_shaking_hands_1780768432105.png";
 import {
   SupportedLanguage,
   CropProblemAttempt,
@@ -42,7 +46,8 @@ import {
   ChatMessage,
   Appointment,
   WeatherData,
-  AgShop
+  AgShop,
+  MitraQueryAttempt
 } from "./types";
 
 // Static Sample Images for Crop Diagnosing
@@ -140,51 +145,413 @@ const REGIONS_LIST = [
   { name: "Coimbatore (Tamil Nadu)", lat: "11.01", lng: "76.95" }
 ];
 
-// Near Agriculture Experts Mock
-const MOCK_EXPERTS: Expert[] = [
-  {
-    id: "exp_1",
-    name: "Dr. Ramesh Chaudhary",
-    role: "Krishi Vigyan Kendra (KVK) Senior Scientist",
-    specialty: "Soil Health & Cereal Diseases",
-    distance: "0.8 km",
-    phone: "+91 9448102316",
-    organization: "ICAR - Krishi Vigyan Kendra",
-    rating: 4.9,
-    online: true,
-    avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
-  },
-  {
-    id: "exp_2",
-    name: "Smt. Kavitha R.",
-    role: "Public Agricultural Extension Officer",
-    specialty: "High-yield Cash Crops & Pest Controls",
-    distance: "1.9 km",
-    phone: "+91 9008511224",
-    organization: "State Department of Agriculture",
-    rating: 4.7,
-    online: true,
-    avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
-  },
-  {
-    id: "exp_3",
-    name: "Dr. Amit Patil",
-    role: "Private Agronomist & Bio-fertilizer Lead",
-    specialty: "Horticulture, Grapes & Cotton Protection",
-    distance: "3.4 km",
-    phone: "+91 9886012455",
-    organization: "GreenEarth Agritech Services",
-    rating: 4.6,
-    online: false,
-    avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
-  }
-];
+// Near Agriculture Experts Mock Localized per language selection
+const EXPERT_GREETINGS: Record<SupportedLanguage, string> = {
+  en: "Namaste farmer companion, I am your dedicated KVK Advisor. Feel free to describe or upload details about crop diseases, pest insects, or fertilizer requirements for professional recommendations.",
+  hi: "नमस्ते किसान भाई/बहन, मैं आपका समर्पित कृषि विज्ञान केंद्र (KVK) सलाहकार हूँ। फसल रोगों, कीड़ों या खाद संबंधी समस्याओं के त्वरित समाधान के लिए कृपया अपनी समस्या का विवरण या फोटो साझा करें।",
+  kn: "ನಮಸ್ಕಾರ ರೈತ ಬಾಂಧವರೇ, ನಾನು ನಿಮ್ಮ ಕೃಷಿ ವಿಜ್ಞಾನ ಕೇಂದ್ರದ ತಜ್ಞ ಸಲಹೆಗಾರ. ಬೆಳೆ ರೋಗಗಳು, ಕೀಟ ಬಾಧೆಗಳು ಅಥವಾ ಗೊಬ್ಬರ ಅಗತ್ಯಗಳ ಬಗ್ಗೆ ಯಾವುದೇ ವಿವರಗಳು ಅಥವಾ ಫೋಟೋವನ್ನು ಇಲ್ಲಿ ಹಂಚಿಕೊಳ್ಳಿ, ನಾನು ನಿಮಗೆ ಉತ್ತಮ ಪರಿಹಾರ ನೀಡುತ್ತೇನೆ.",
+  te: "నమస్తే రైతు సోదరులారా, నేను మీ కృషి విజ్ఞాన కేంద్రం (KVK) సలహాదారుని. పంట తెగుళ్లు, కీటకాలు లేదా ఎరువుల అవసరాల గురించి సమాచారాన్ని లేదా ఫోటోను ఇక్కడ పంపండి, తగిన సలహా అందిస్తాను.",
+  ta: "வணக்கம் விவசாய தோழரே, நான் உங்களது பிரத்யேக வேளாண் அறிவியல் நிலைய (KVK) ஆலோசகர். பயிர் நோய்கள், பூச்சித் தாக்குதல்கள் அல்லது உரத் தேவைகள் பற்றிய தகவல்களை அல்லது புகைப்படத்தை இங்கே பகிரவும், வழிகாட்டுகிறேன்.",
+  mr: "नमस्कार शेतकरी बंधू-भगिनींनो, मी आपला कृषी विज्ञान केंद्र (KVK) सल्लागार आहे. पिकांवरील रोग, कीड किंवा खतांच्या नियोजना संबंधी कोणतीही समस्या किंवा फोटो येथे पाठवा, मी त्याचे त्वरित निवारण करेन.",
+  bn: "নমস্কার চাষী ভাই ও বোনেরা, আমি আপনার আন্তরিক কৃষি বিজ্ঞান কেন্দ্রের (KVK) উপদেষ্টা। ফসলের রোগ, কীটপতঙ্গের আক্রমণ বা সারের প্রয়োজনীয়তা সম্পর্কে বিস্তারিত তথ্য বা ছবি এখানে পাঠান, আমি সাহায্য করছি।",
+  ml: "നമസ്കാരം കർഷക മിത്രമേ, ഞാൻ നിങ്ങളുടെ കൃഷി വിജ്ഞാന കേന്ദ്രം (KVK) ഉപദേശകനാണ്. വിള രോഗങ്ങൾ, കീടബാധകൾ അല്ലെങ്കിൽ വളപ്രയോഗം എന്നിവയെക്കുറിച്ചുള്ള വിവരങ്ങളോ ഫോട്ടോയോ ദയവായി ഇവിടെ അയക്കൂ, പരിഹാരം നിർദ്ദേശിക്കാം.",
+  gu: "નમસ્તે ખેડૂત મિત્રો, હું આપનો સમર્પિત કૃષિ વિજ્ઞાન કેન્દ્ર (KVK) સલાહકાર છું. પાકના રોગો, જીવાતો કે ખાતર સંબંधी કોઈ પણ વિગત અથવા ફોટો અહીં મોકલો, હું આપને યોગ્ય માર્ગદશન આપીશ.",
+  pa: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ ਕਿਸਾਨ ਵੀਰੋ, ਮੈਂ ਤੁਹਾਡਾ ਸਮਰਪਿਤ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ (KVK) ਸਲਾਹਕਾਰ ਹਾਂ। ਫ਼ਸਲਾਂ ਦੀਆਂ ਬੀਮਾਰੀਆਂ, ਕੀੜੇ-ਮਕੌੜਿਆਂ ਜਾਂ ਖਾਦ ਦੀਆਂ ਲੋੜਾਂ ਬਾਰੇ ਜਾਣਕਾਰੀ ਜਾਂ ਫ਼ੋਟੋ ਇੱਥੇ ਭੇਜੋ, ਮੈਂ ਤੁਹਾਡੀ ਹਰ ਸੰਭਵ ਮਦਦ ਕਰਾਂਗਾ।"
+};
+
+const LOCALIZED_EXPERTS: Record<SupportedLanguage, Expert[]> = {
+  en: [
+    {
+      id: "exp_1",
+      name: "Dr. Ramesh Chaudhary",
+      role: "Krishi Vigyan Kendra (KVK) Senior Scientist",
+      specialty: "Soil Health & Cereal Diseases",
+      distance: "0.8 km",
+      phone: "+91 9448102316",
+      organization: "ICAR - Krishi Vigyan Kendra",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2",
+      name: "Smt. Kavitha R.",
+      role: "Public Agricultural Extension Officer",
+      specialty: "High-yield Cash Crops & Pest Controls",
+      distance: "1.9 km",
+      phone: "+91 9008511224",
+      organization: "State Department of Agriculture",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3",
+      name: "Dr. Amit Patil",
+      role: "Private Agronomist & Bio-fertilizer Lead",
+      specialty: "Horticulture, Grapes & Cotton Protection",
+      distance: "3.4 km",
+      phone: "+91 9886012455",
+      organization: "GreenEarth Agritech Services",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  hi: [
+    {
+      id: "exp_1_hi",
+      name: "डॉ. रमेश चौधरी",
+      role: "वरिष्ठ वैज्ञानिक (कृषि विज्ञान केंद्र)",
+      specialty: "मृदा स्वास्थ्य और फसल रोग निवारण",
+      distance: "0.8 किमी",
+      phone: "+91 9448102316",
+      organization: "आईसीएआर - कृषि विज्ञान केंद्र",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_hi",
+      name: "श्रीमती सविता शर्मा",
+      role: "राजकीय कृषि प्रसार अधिकारी",
+      specialty: "नकदी फसलें और जैविक कीट नियंत्रण",
+      distance: "1.9 किमी",
+      phone: "+91 9008511224",
+      organization: "राज्य कृषि विभाग",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_hi",
+      name: "डॉ. अखिलेश प्रसाद",
+      role: "निजी कृषि विज्ञानी एवं बागवानी प्रमुख",
+      specialty: "सब्जियां, आलू और आम फसल सुरक्षा",
+      distance: "3.4 किमी",
+      phone: "+91 9886012455",
+      organization: "हरित भूमि एग्रिटेक सेवाएं",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  kn: [
+    {
+      id: "exp_1_kn",
+      name: "ಡಾ. ಎಚ್. ಸಿ. ಮಹದೇವಪ್ಪ",
+      role: "ಹಿರಿಯ ವಿಜ್ಞಾನಿ (ಕೃಷಿ ವಿಜ್ಞಾನ ಕೇಂದ್ರ)",
+      specialty: "ಮಣ್ಣಿನ ಆರೋಗ್ಯ ಮತ್ತು ಭತ್ತದ ರೋಗಗಳು",
+      distance: "0.8 ಕಿ.ಮೀ",
+      phone: "+91 9448102316",
+      organization: "ಐಸಿಎಆರ್ - ಕೃಷಿ ವಿಜ್ಞಾನ ಕೇಂದ್ರ",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_kn",
+      name: "ಶ್ರೀಮತಿ ಕವಿತಾ ಗೌಡ",
+      role: "ಸಾರ್ವಜನಿಕ ಕೃಷಿ ವಿಸ್ತರಣಾ ಅಧಿಕಾರಿ",
+      specialty: "ಹೆಚ್ಚು ಇಳುವರಿ ಕೊಡುವ ಬೆಳೆಗಳು ಮತ್ತು ಕೀಟ ನಾಶಕಗಳು",
+      distance: "1.9 ಕಿ.ಮೀ",
+      phone: "+91 9008511224",
+      organization: "ರಾಜ್ಯ ಕೃಷಿ ಇಲಾಖೆ",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_kn",
+      name: "ಡಾ. ಗಿರೀಶ್ ಪ್ರಸಾದ್",
+      role: "ಕೃಷಿ ತಜ್ಞ ಮತ್ತು ಜೈವಿಕ ಗೊಬ್ಬರ ಸಂಶೋಧಕ",
+      specialty: "ತೋಟಗಾರಿಕೆ ಬೆಳೆಗಳು, ಅಡಿಕೆ ಮತ್ತು ಕಾಫಿ ಸಂರಕ್ಷಣೆ",
+      distance: "3.4 ಕಿ.ಮೀ",
+      phone: "+91 9886012455",
+      organization: "ಹಸಿರು ಧರಿತ್ರಿ ಅಗ್ರಿಟೆಕ್ ಸೇವೆಗಳು",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  te: [
+    {
+      id: "exp_1_te",
+      name: "డా. జి. రమణారావు",
+      role: "సీనియర్ సైంటిస్ట్ (కృషి విజ్ఞాన కేంద్రం)",
+      specialty: "నేల ఆరోగ్యం & తృణధాన్యాల వ్యాధులు",
+      distance: "0.8 కి.మీ",
+      phone: "+91 9448102316",
+      organization: "ఐసీఏఆర్ - కృషి విజ్ఞాన కేంద్రం",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_te",
+      name: "శ్రీమతి లక్ష్మి ప్రసన్న",
+      role: "వ్యవసాయ విస్తరణ అధికారి",
+      specialty: "వ్యవసాయ దిగుబడులు & తెగుళ్ల నివారణ",
+      distance: "1.9 కి.మీ",
+      phone: "+91 9008511224",
+      organization: "రాష్ట్ర వ్యవసాయ శాఖ",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_te",
+      name: "డా. ఎన్. వెంకటేశ్వర్లు",
+      role: "ప్రైవేట్ అగ్రోనమిస్ట్ & బయో-ఫెర్టిలైజర్ లీడ్",
+      specialty: "హార్టికల్చర్, మిరప & పత్తి రక్షణ",
+      distance: "3.4 కి.మీ",
+      phone: "+91 9886012455",
+      organization: "గ్రీన్ ఎర్త్ అగ్రిటెక్ సర్వీసెస్",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  ta: [
+    {
+      id: "exp_1_ta",
+      name: "டாக்டர் எஸ். கே. சுப்பிரமணியன்",
+      role: "முதுநிலை விஞ்ஞானி (வேளாண் அறிவியல் நிலையம்)",
+      specialty: "மண் வளம் மற்றும் தானிய நோய்கள் கண்டறிதல்",
+      distance: "0.8 கி.மீ",
+      phone: "+91 9448102316",
+      organization: "ஐசிஏஆர் - வேளாண் அறிவியல் நிலையம்",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_ta",
+      name: "திருமிலி மீனாட்சி எஸ்.",
+      role: "பொது வேளாண் விரிவாக்க அலுவலர்",
+      specialty: "அதிக மகசூல் பயிர்கள் & கூட்டு பூச்சி கட்டுப்பாடு",
+      distance: "1.9 கி.மீ",
+      phone: "+91 9008511224",
+      organization: "மாநில வேளாண் துறை",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_ta",
+      name: "டாக்டர் ஆர். இளங்கோவன்",
+      role: "தனியார் வேளாண் நிபுணர் & உயிர் உர ஆராய்ச்சி",
+      specialty: "தோட்டக்கலை, தென்னை & கரும்பு பாதுகாப்பு",
+      distance: "3.4 கி.மீ",
+      phone: "+91 9886012455",
+      organization: "கிரீன் எர்த் அக்ரிடெக் சர்வீசஸ்",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  mr: [
+    {
+      id: "exp_1_mr",
+      name: "डॉ. बालचंद्र सावंत",
+      role: "वरिष्ठ शास्त्रज्ञ (कृषि विज्ञान केंद्र)",
+      specialty: "जमीन आरोग्य आणि कडधान्य रोग विश्लेषण",
+      distance: "०.८ किमी",
+      phone: "+91 9448102316",
+      organization: "आयसीएआर - कृषी विज्ञान केंद्र",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_mr",
+      name: "श्रीमती प्रियदर्शिनी देशमुख",
+      role: "सार्वजनिक कृषी विस्तार अधिकारी",
+      specialty: "कापूस आणि सोयाबीन पीक संरक्षण व्यवस्थापन",
+      distance: "१.९ किमी",
+      phone: "+91 9008511224",
+      organization: "राज्य कृषी विभाग",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_mr",
+      name: "डॉ. ज्ञानेश्वर पाटील",
+      role: "खाजगी कृषी तज्ञ आणि जैविक खत प्रमुख",
+      specialty: "बागायत, द्राक्षे आणि संत्रा पीक सुरक्षा",
+      distance: "३.४ किमी",
+      phone: "+91 9886012455",
+      organization: "ग्रीन अर्थ ॲग्रिटेक सेवा",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  bn: [
+    {
+      id: "exp_1_bn",
+      name: "ডঃ শুভাশিস ব্যানার্জী",
+      role: "প্রধান বিজ্ঞানী (कृषि विज्ञान केंद्र)",
+      specialty: "মাটি পরীক্ষা এবং ধান গাছের রোগ বিশ্লেষণ",
+      distance: "০.৮ কিমি",
+      phone: "+91 9448102316",
+      organization: "আইসিএআর - কৃষি বিজ্ঞান কেন্দ্র",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_bn",
+      name: "শ্রীমতী অনন্যা সেনগুপ্ত",
+      role: "ব্লক কৃষি সম্প্রসারণ কর্মকর্তা",
+      specialty: "উচ্চ ফলনশীল ফসল ও কীটনাশক সুরক্ষা বিজ্ঞান",
+      distance: "১.৯ কিমি",
+      phone: "+91 9008511224",
+      organization: "রাজ্য কৃষি বিভাগ",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_bn",
+      name: "ডঃ প্রতাপ রায়",
+      role: "বেসরকারি কৃষি বিশেষজ্ঞ ও জৈব সার প্রধান",
+      specialty: "উদ্যানপালন, শাকসবজি ও আলু ফসল সংরক্ষণ",
+      distance: "৩.৪ কিমি",
+      phone: "+91 9886012455",
+      organization: "গ্রীনআর্থ এগ্রিটেক সার্ভিসেস",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  ml: [
+    {
+      id: "exp_1_ml",
+      name: "ഡോ. കെ. രാധാകൃഷ്ണൻ",
+      role: "സീനിയർ ശാസ്ത്രജ്ഞൻ (കൃഷി വിജ്ഞാന കേന്ദ്രം)",
+      specialty: "മണ്ണിന്റെ ഗുണം & നെല്ല് രോഗ നിർണ്ണയം",
+      distance: "0.8 കി.മീ",
+      phone: "+91 9448102316",
+      organization: "ഐസിഎആർ - കൃഷി വിജ്ഞാന കേന്ദ്രം",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_ml",
+      name: "ശ്രീമതി ദീപാ തോമസ്",
+      role: "കൃഷി വികസന ഓഫീസർ",
+      specialty: "നാണ്യവിളകൾ & ജൈവ കീടനിയന്ത്രണ വിശകലനം",
+      distance: "1.9 കി.മീ",
+      phone: "+91 9008511224",
+      organization: "സംസ്ഥാന കൃഷി വകുപ്പ്",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_ml",
+      name: "ഡോ. മനോജ് കുമാർ",
+      role: "പ്രൈവറ്റ് അഗ്രോണമിസ്റ്റ് & ബയോ-ഫെർട്ടിലൈസർ",
+      specialty: "സുഗന്ധവ്യഞ്ജനങ്ങൾ, വാഴ & തെങ്ങ് സംരക്ഷണം",
+      distance: "3.4 കി.മീ",
+      phone: "+91 9886012455",
+      organization: "ഗ്രീൻഎർത്ത് അഗ്രിടെക് കമ്പനി",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  gu: [
+    {
+      id: "exp_1_gu",
+      name: "ડો. મનસુખ શિયાળ",
+      role: "વરિષ્ઠ વૈજ્ઞાનિક (કૃષિ વિજ્ઞાન કેન્દ્ર)",
+      specialty: "જમીન આરોગ્ય અને કપાસ રોગ વિશ્લેષણ",
+      distance: "0.8 કિમી",
+      phone: "+91 9448102316",
+      organization: "આઈસીએઆર - કૃષિ વિજ્ઞાન કેન્દ્ર",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_gu",
+      name: "શ્રીમતી જાગૃતિ પટેલ",
+      role: "સરકારી કૃષિ વિસ્તરણ અધિકારી",
+      specialty: "ખેતીવાડી ઉત્પાદન અને સેન્દ્રિય જીવાત વ્યવસ્થાપન",
+      distance: "1.9 કિમી",
+      phone: "+91 9008511224",
+      organization: "રાજ્ય કૃષિ વિભાગ",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_gu",
+      name: "ડો. રાજેશ શાહ",
+      role: "ખાનગી પાક નિષ્ણાત અને બાયો ખત પ્રમુખ",
+      specialty: "બાગાયત, મગફળી અને શાકભાજી પાક રક્ષણ",
+      distance: "3.4 કિમી",
+      phone: "+91 9886012455",
+      organization: "ગ્રીન અર્થ એગ્રીટેક સર્વિસિસ",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ],
+  pa: [
+    {
+      id: "exp_1_pa",
+      name: "ਡਾ. ਹਰਪ੍ਰੀਤ ਸਿੰਘ",
+      role: "ਸੀਨੀਅਰ ਵਿਗਿਆਨੀ (ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ)",
+      specialty: "ਮਿੱਟੀ ਦੀ ਸਿਹਤ ਅਤੇ ਕਣਕ ਦੀਆਂ ਬੀਮਾਰੀਆਂ ਦਾ ਹੱਲ",
+      distance: "0.8 ਕਿਲੋਮੀਟਰ",
+      phone: "+91 9448102316",
+      organization: "ਆਈਸੀਏਆਰ - ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ",
+      rating: 4.9,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_2_pa",
+      name: "ਸ਼੍ਰੀਮਤੀ ਬਲਜੀਤ ਕੌਰ",
+      role: "ਸਰਕਾਰੀ ਖੇਤੀਬਾੜੀ ਵਿਸਥਾਰ ਅਫਸਰ",
+      specialty: "ਝੋਨਾ ਅਤੇ ਫ਼ਸਲੀ ਵਿਭਿੰਨਤਾ ਤੇ ਉਤਪਾਦਨ",
+      distance: "1.9 ਕਿਲੋਮੀਟਰ",
+      phone: "+91 9008511224",
+      organization: "ਰਾਜ ਖੇਤੀਬਾੜੀ ਵਿਭਾਗ",
+      rating: 4.7,
+      online: true,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      id: "exp_3_pa",
+      name: "ਡਾ. ਗੁਰਦੇਵ ਸਿੰਘ",
+      role: "ਨਿੱਜੀ ਖੇਤੀਬਾੜੀ ਮਾਹਰ ਅਤੇ ਜੈਵਿਕ ਖਾਦ ਲੀਡ",
+      specialty: "ਬਾਗਬਾਨੀ, ਮੱਕੀ ਅਤੇ ਕੀਟ ਕੰਟਰੋਲ ਪ੍ਰਸ਼ਾਸਨ",
+      distance: "3.4 ਕਿਲੋਮੀਟਰ",
+      phone: "+91 9886012455",
+      organization: "ਗ੍ਰੀਨ ਅਰਥ ਐਗਰੀਟੈਕ ਸੇਵਾਵਾਂ",
+      rating: 4.6,
+      online: false,
+      avatarUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80"
+    }
+  ]
+};
 
 export default function App() {
   // Navigation & Multi-Language Settings
   const [lang, setLang] = useState<SupportedLanguage | null>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "voice" | "weather" | "shops" | "experts">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "scan" | "voice" | "weather" | "shops" | "experts" | "history" | "chatbot">("dashboard");
   const [showLanguageSettings, setShowLanguageSettings] = useState(false);
+
+  // Chatbot states
+  const [chatbotMessages, setChatbotMessages] = useState<ChatMessage[]>([]);
+  const [chatbotInput, setChatbotInput] = useState("");
+  const [isChatbotResponding, setIsChatbotResponding] = useState(false);
 
   // Crop Scan States
   const [scanImageBase64, setScanImageBase64] = useState<string | null>(null);
@@ -192,6 +559,7 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<CropProblemAttempt | null>(null);
   const [scanHistory, setScanHistory] = useState<CropProblemAttempt[]>([]);
+  const [queryHistory, setQueryHistory] = useState<MitraQueryAttempt[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
 
   // Voice Solving States
@@ -207,6 +575,13 @@ export default function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const chatbotEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (activeTab === "chatbot" && chatbotEndRef.current) {
+      chatbotEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatbotMessages, activeTab]);
 
   // Weather States
   const [selectedRegion, setSelectedRegion] = useState(REGIONS_LIST[0]);
@@ -222,6 +597,20 @@ export default function App() {
   const [isExpertResponding, setIsExpertResponding] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
+  // Added Custom Experts
+  const [addedExperts, setAddedExperts] = useState<(Expert & { language: SupportedLanguage })[]>([]);
+  const [showAddExpertModal, setShowAddExpertModal] = useState(false);
+  const [newExpertName, setNewExpertName] = useState("");
+  const [newExpertRole, setNewExpertRole] = useState("Krishi Vigyan Kendra (KVK) Scientist");
+  const [newExpertSpecialty, setNewExpertSpecialty] = useState("");
+  const [newExpertDistance, setNewExpertDistance] = useState("1.0 km");
+  const [newExpertPhone, setNewExpertPhone] = useState("");
+  const [newExpertOrg, setNewExpertOrg] = useState("");
+  const [newExpertLang, setNewExpertLang] = useState<SupportedLanguage>("en");
+  const [newExpertOnline, setNewExpertOnline] = useState(true);
+  const [newExpertRating, setNewExpertRating] = useState(4.8);
+  const [newExpertAvatar, setNewExpertAvatar] = useState("");
+
   // Booking Modal
   const [showBookingModal, setShowBookingModal] = useState<Expert | null>(null);
   const [bookingDate, setBookingDate] = useState("");
@@ -229,11 +618,14 @@ export default function App() {
   const [bookingNotes, setBookingNotes] = useState("");
 
   // Speech Recognition fallback
-  const [recState, setRecState] = useState<"idle" | "recording" | "fallback">("idle");
+  const [recState, setRecState] = useState<"idle" | "recording" | "fallback" >("idle");
+
+  const [historySubTab, setHistorySubTab] = useState<"scans" | "queries" | "appointments">("scans");
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const isCustomLocation = !REGIONS_LIST.some(r => r.name === selectedRegion.name);
 
-  // Load configuration & history from localStorage
+  // Load configuration & history from localStorage and auto-detect GPS location immediately
   useEffect(() => {
     const savedLang = localStorage.getItem("krishi_lang");
     if (savedLang) {
@@ -247,6 +639,11 @@ export default function App() {
       setScanHistory(JSON.parse(savedScans));
     }
 
+    const savedQueries = localStorage.getItem("krishi_queries");
+    if (savedQueries) {
+      setQueryHistory(JSON.parse(savedQueries));
+    }
+
     const savedAppts = localStorage.getItem("krishi_appts");
     if (savedAppts) {
       setAppointments(JSON.parse(savedAppts));
@@ -256,12 +653,69 @@ export default function App() {
     if (savedChats) {
       setExpertChats(JSON.parse(savedChats));
     }
+
+    const savedAddedExperts = localStorage.getItem("krishi_added_experts");
+    if (savedAddedExperts) {
+      setAddedExperts(JSON.parse(savedAddedExperts));
+    }
+
+    const savedChatbotMsgs = localStorage.getItem("krishi_chatbot_messages");
+    if (savedChatbotMsgs) {
+      setChatbotMessages(JSON.parse(savedChatbotMsgs));
+    }
+
+    // Automatically detect exact GPS location on startup so the user does not have to click or reload
+    if (navigator.geolocation) {
+      setIsDetectingLocation(true);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          try {
+            const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${savedLang || "en"}`);
+            let placeName = `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
+            if (response.ok) {
+              const data = await response.json();
+              const city = data.city || data.locality || data.principalSubdivision || "";
+              const country = data.countryName || "";
+              if (city) {
+                placeName = `${city}${country ? `, ${country}` : ""}`;
+              }
+            }
+            setSelectedRegion({ 
+              name: placeName, 
+              lat: lat.toString(), 
+              lng: lng.toString() 
+            });
+          } catch (err) {
+            console.warn("Auto geolocator error during startup reverse-geocode:", err);
+            setSelectedRegion({ 
+              name: `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`, 
+              lat: lat.toString(), 
+              lng: lng.toString() 
+            });
+          } finally {
+            setIsDetectingLocation(false);
+          }
+        },
+        (error) => {
+          console.warn("Auto geolocator failed startup GPS detection:", error);
+          setIsDetectingLocation(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
   }, []);
 
   // Save changes to localStorage helper
   const saveScans = (newScans: CropProblemAttempt[]) => {
     setScanHistory(newScans);
     localStorage.setItem("krishi_scans", JSON.stringify(newScans));
+  };
+
+  const saveQueries = (newQueries: MitraQueryAttempt[]) => {
+    setQueryHistory(newQueries);
+    localStorage.setItem("krishi_queries", JSON.stringify(newQueries));
   };
 
   const saveAppts = (newAppts: Appointment[]) => {
@@ -274,10 +728,194 @@ export default function App() {
     localStorage.setItem("krishi_chats", JSON.stringify(newChats));
   };
 
+  const handleAddNewExpert = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newExpertName || !newExpertSpecialty || !newExpertPhone || !newExpertOrg) {
+      alert("Please fill in all required fields!");
+      return;
+    }
+
+    const defaultAvatars = [
+      "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80",
+      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80",
+      "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=150&q=80",
+      "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80",
+      "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80"
+    ];
+    const pickedAvatar = newExpertAvatar.trim() || defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
+
+    const newExpert: Expert & { language: SupportedLanguage } = {
+      id: `custom_exp_${Date.now()}`,
+      name: newExpertName,
+      role: newExpertRole,
+      specialty: newExpertSpecialty,
+      distance: newExpertDistance.trim() || "1.0 km",
+      phone: newExpertPhone,
+      organization: newExpertOrg,
+      rating: Number(newExpertRating) || 5.0,
+      online: newExpertOnline,
+      avatarUrl: pickedAvatar,
+      language: newExpertLang
+    };
+
+    const updated = [...addedExperts, newExpert];
+    setAddedExperts(updated);
+    localStorage.setItem("krishi_added_experts", JSON.stringify(updated));
+    setShowAddExpertModal(false);
+
+    // Seed welcoming greeting prompt for the new custom expert
+    const currentGreetings = EXPERT_GREETINGS[newExpertLang] || EXPERT_GREETINGS["en"];
+    const expertId = newExpert.id;
+    const initialChats = {
+      ...expertChats,
+      [expertId]: [{
+        id: "intro_msg",
+        sender: "expert" as const,
+        text: currentGreetings,
+        timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      }]
+    };
+    saveChats(initialChats);
+  };
+
   // Helper translations lookup
   const t = (key: string) => {
     const activeLang = lang || "en";
-    return TRANSLATIONS[activeLang][key] || TRANSLATIONS["en"][key] || key;
+    
+    // Dynamic Chatbot Translation Dictionary
+    if (key === "aiChatbot") {
+      const m = {
+        en: "Mitra AI Chat",
+        hi: "कृषिमित्र एआई चैट",
+        kn: "ಕೃಷಿಮಿತ್ರ AI चॉत",
+        te: "కృషీమిత్ర AI చాట్",
+        ta: "கிருஷிமித்ரா AI சேட்",
+        mr: "कृषिमित्र AI चॅट",
+        bn: "কৃষিমিত্র AI চ্যাট",
+        ml: "കൃഷിമിത്ര AI ചാറ്റ്",
+        gu: "કૃષિમિત્ર એઆઈ ચેટ",
+        pa: "ਕ੍ਰਿਸ਼ੀਮਿੱਤਰ AI ਚੈਟ"
+      };
+      return m[activeLang as keyof typeof m] || m["en"];
+    }
+    if (key === "aiChatbotSub") {
+      const m = {
+        en: "Your always-online AI agriculture advisor. Ask about crops, fertilizers, pest control, or government subsidies.",
+        hi: "आपका सदैव ऑनलाइन कृत्रिम बुद्धिमत्ता कृषि मित्र। मिट्टी, खाद, फसल सुरक्षा और अनुदान के बारे में पूछें।",
+        kn: "ಯಾವಾಗಲೂ ಲಭ್ಯವಿರುವ ಕೃಷಿ ಸಲಹೆಗಾರ. ಬೆಳೆಗಳು, ರೋಗ ನಿಯಂತ್ರಣ, ಮತ್ತು ರಿಯಾಯಿತಿ ಯೋಜನೆಗಳ ವಿವರ ಪಡೆಯಿರಿ.",
+        te: "ఎల్లప్పుడూ ఆన్‌లైన్‌‌లో ఉండే వ్యవసాయ మిత్రుడు. పంటలు, ఎరువులు, తెగుళ్ల నివారణ మందుల గురించి తెలుసుకోండి.",
+        ta: "விவசாயிகளுக்கு எப்போதும் வழிகாட்டும் டிஜிட்டல் ஆலோசகர். விதைகள், உரங்கள், பயிர் பாதுகாப்பு பற்றி கேளுங்கள்.",
+        mr: "तुमचा सदैव सोबत असलेला डिजिटल शेती मार्गदर्शक. माती, खते, पिकांवरील रोग आणि शासकीय योजनांविषयी माहिती घ्या.",
+        bn: "আপনার সার্বক্ষণিক এআই कृषि বিশেষজ্ঞ। মাটি উর্বর করা, সার প্রয়োগ বা সরকারি কৃষি অনুদান নিয়ে জিজ্ঞাসা করুন।",
+        ml: "എപ്പോഴും സജീവമായിരിക്കുന്ന സ്മാർട്ട് കാർഷിക സഹായി. വിളകൾ, വളങ്ങൾ, കീടനിയന്ത്രണം എന്നിവയെക്കുറിച്ച് ചോദിക്കുക.",
+        gu: "તમારા હંમેશાં ઓનલાઇન રહેતા સ્માર્ટ ખેતી નિષ્ણાત. પાક, ખાતર અને કૃષિ યોજનાઓ વિશે પૂછો.",
+        pa: "ਤੁਹਾਡਾ ਹਮੇਸ਼ਾ ਆਨਲਾਈਨ ਰਹਿਣ ਵਾਲਾ ਸਮਾਰਟ ਖੇਤੀ ਮਾਹਿਰ। ਫਸਲਾਂ, ਖਾਦਾਂ, ਬੀਮਾਰੀਆਂ ਤੇ ਸਰਕਾਰੀ ਸਕੀਮਾਂ ਬਾਰੇ ਪੁੱਛੋ।"
+      };
+      return m[activeLang as keyof typeof m] || m["en"];
+    }
+    if (key === "aiChatbotPlaceholder") {
+      const m = {
+        en: "Type your query (e.g., how to treat tomato rot, soil care)...",
+        hi: "अपनी समस्या यहाँ लिखें (जैसे: आलू की रोपाई, टमाटर सड़न का उपचार)...",
+        kn: "ನಿಮ್ಮ ಕೃಷಿ ಪ್ರಶ್ನೆಯನ್ನು ಇಲ್ಲಿ ಬರೆಯಿರಿ (ಉದಾ: ಟೊಮೆಟೊ ಕೊಳೆ ರೋಗ)...",
+        te: "మీ వ్యవసాయ సమస్యను ఇక్కడ అడగండి (ఉదా: టొమాటో తెగులు నివారణ)...",
+        ta: "கேள்விகளை இங்கே பதிவிடவும் (எ.கா: தக்காளி இலை கருகல் நோய்)...",
+        mr: "आपली शेतीविषयक शंका चॅटमध्ये लिहा (उदा: टोमॅटोवरील रोगाचे औषध)...",
+        bn: "আপনার কৃষিসंক্রান্ত প্রশ্নটি লিখুন (যেমন: টমেটো পচা রোগ নিরাময়)...",
+        ml: "നിങ്ങളുടെ കാർഷിക സംശയങ്ങൾ ഇവിടെ രേഖപ്പെടുത്തുക...",
+        gu: "તમારો પ્રશ્ન અહીં ટાઇપ કરો (દા.ત. ટામેટાના પાકમાં રોગ)...",
+        pa: "ਆਪਣਾ ਖੇਤੀਬਾੜੀ ਸਵਾਲ ਇੱਥੇ ਲਿਖੋ (ਜਿਵੇਂ ਕਿ ਟਮਾਟਰ ਰੋਗ ਦਾ ਇਲਾਜ)..."
+      };
+      return m[activeLang as keyof typeof m] || m["en"];
+    }
+    if (key === "aiChatbotGreeting") {
+      const m = {
+        en: "Namaste! I am KrishiMitra, your digital farm advisor. Ask me any question about crop health, seed treatment, irrigation, soil vitality, or subvention schemes. How can I assist you today?",
+        hi: "नमस्ते! मैं कृषिमित्र हूँ, आपका डिजिटल कृषि डॉक्टर। आप मुझसे अपनी भाषा में फसल स्वास्थ्य, जैविक खाद, बीज शोधन, सिंचाई या सरकारी अनुदान के बारे में कुछ भी पूछ सकते हैं। आज मैं आपकी क्या मदद करूँ?",
+        kn: "ನಮಸ್ತೆ! ನಾನು ನಿಮ್ಮ ಕೃಷಿಮಿತ್ರ ಡಿಜಿಟಲ್ ಹೆಲ್ಪರ್. ಬೆಳೆ ರೋಗಗಳು, ಉತ್ತಮ ಗೊಬ್ಬരಗಳು, ಬೀಜೋಪಚಾರ ಅಥವಾ ಕೃಷಿ ಯಂತ್ರೋಪಕರಣಗಳ ಸಬ್ಸಿಡಿಯ ಬಗ್ಗೆ ಯಾವುದೇ ಪ್ರಶ್ನೆಯನ್ನು ನಿಮ್ಮ ಹೆತ್ತಮ್ಮ ನುಡಿಯಲ್ಲಿ ಕೇಳಬಹುದು. ಇಂದು ನಾನು ನಿಮಗೆ ಏನು ನೆರవు ನೀಡಲಿ?",
+        te: "నమస్తే! నేను కృషీమిత్ర ఎలక్ట్రానిక్ వ్యవసాయ సలహాదారుణ్ణి. పంటల ఆరోగ్యం, సేంద్రీయ ఎరువులు, నీటి యాజమాన్యం లేదా బ్యాంకు రుణాల సబ్సిడీ గురించి ఏ వివరాలైనా అడగవచ్చు. ఈ రోజు మీకు ఎలా సహాయం చేయాలి?",
+        ta: "வணக்கம்! நான் உங்கள் கிருஷிமித்ரா டிஜிட்டல் உதவியாளர். பயிர் நோய்கள், மண் பரிசோதனை, நீர் மேலாண்மை அல்லது அரசு மானியங்கள் பற்றி உங்கள் தாய்மொழியில் கேளுங்கள். இன்று நான் உங்களுக்கு எவ்வாறு உதவட்டும்?",
+        mr: "नमस्ते! मी कृषिमित्र आहे, आपला डिजिटल शेती सल्लागार. पीक रोग, बियाणे प्रक्रिया, सेंद्रिय शेती किंवा सरकारी अनुदानाबद्दल कोणतीही शंका आपल्या मातृभाषेत विचारा. आज मी आपली काय मदत करू?",
+        bn: "নমস্কার! আমি কৃষিমিত্র, আপনার সর্বক্ষণের ডিজিটাল কৃষি ডাক্তার। আপনি আপনার মাতৃভাষাতেই শস্যের রোগ, ভালো সার বা সরকারি ভর্তুকি নিয়ে যেকোনো প্রশ্ন করতে পারেন। আজ আপনাকে কীভাবে সাহায্য করতে পারি?",
+        ml: "നമസ്തേ! ഞാൻ കൃഷിമിത്ര, നിങ്ങളുടെ ഡിജിറ്റൽ കാർഷിക സഹായി. വിള രോഗങ്ങൾ, വളപ്രയോഗം, ജലസേചനം അല്ലെങ്കിൽ സർക്കാർ സബ്‌സിഡികൾ എന്നിവയെക്കുറിച്ച് നിങ്ങളുടെ മാതൃഭാഷയിൽ ചോദിക്കാം. ഇന്ന് ഞാൻ നിങ്ങൾക്ക് എങ്ങനെയാണ് സഹായിക്കേണ്ടത്?",
+        gu: "નમસ્તે! હું કૃષિમિત્ર છું, તમારો હોશિયાર ડિજિટલ ખેતી ડૉક્ટર. પાકના રોગો, ખાતરો, જંતુનાશકો અથવા સરਕਾਰੀ સબસિડીઓ વિશે માતૃભાષામાં ગમે તે પ્રશ્ન પૂછો. આજે હું આપની શું સેવા કરી શકું?",
+        pa: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ! ਮੈਂ ਕ੍ਰਿਸ਼ੀਮਿੱਤਰ ਹਾਂ, ਤੁਹਾਡਾ ਡਿਜੀਟਲ ਖੇਤੀ ਡਾਕਟਰ। ਫਸਲਾਂ ਦੀਆਂ ਬੀਮਾਰੀਆਂ, ਖਾਦਾਂ, ਕੀਟਨਾਸ਼ਕਾਂ ਜਾਂ ਸਰਕਾਰੀ ਸਬਸਿਡੀਆਂ ਬਾਰੇ ਕੋਈ ਵੀ ਸਵਾਲ ਆਪਣੀ ਭਾਸ਼า ਵਿੱਚ ਪੁੱਛੋ। ਅੱਜ ਮੈਂ ਤੁਹਾਡੀ ਕੀ ਮਦਦ ਕਰ ਸਕਦਾ ਹਾਂ?"
+      };
+      return m[activeLang as keyof typeof m] || m["en"];
+    }
+
+    const localTranslations: Record<string, Record<string, string>> = {
+      en: {
+        location: "Location",
+        coordinates: "Coordinates",
+        support: "Support",
+      },
+      hi: {
+        location: "स्थान",
+        coordinates: "समन्वय",
+        support: "सहायता",
+      },
+      kn: {
+        location: "ಸ್ಥಳ",
+        coordinates: "ನಿರ್ದೇಶಾಂಕಗಳು",
+        support: "ಬೆಂಬಲ",
+      },
+      te: {
+        location: "ప్రాంతం",
+        coordinates: "కోఆర్డినేట్లు",
+        support: "మద్దతు",
+      },
+      ta: {
+        location: "இடம்",
+        coordinates: "ஆயத்தொலைவுகள்",
+        support: "ஆதரவு",
+      },
+      mr: {
+        location: "स्थान",
+        coordinates: "अक्षांश-रेखांश",
+        support: "मदत",
+      },
+      bn: {
+        location: "স্থান",
+        coordinates: "স্থানাঙ্ক",
+        support: "সহায়তা",
+      },
+      ml: {
+        location: "സ്ഥലം",
+        coordinates: "കോർഡിനേറ്റുകൾ",
+        support: "പിന്തുണ",
+      },
+      gu: {
+        location: "સ્થળ",
+        coordinates: "અક્ષાંશ-રેખાંશ",
+        support: "સપોર્ટ",
+      },
+      pa: {
+        location: "ਸਥਾਨ",
+        coordinates: "ਨਿਰਦੇਸ਼ਾਂਕ",
+        support: "ਸਹਾਇਤਾ",
+      }
+    };
+    if (localTranslations[activeLang]?.[key]) {
+      return localTranslations[activeLang][key];
+    }
+    return TRANSLATIONS[activeLang]?.[key] || TRANSLATIONS["en"]?.[key] || key;
+  };
+
+  const getLocalHistoryLabel = () => {
+    const lbls: Record<string, string> = {
+      en: "Farmer Logbook",
+      hi: "किसान लॉगबुक",
+      kn: "ರೈತ ಲಾಗ್‌ಬುಕ್",
+      te: "రైతు లాగ్‌బుక్",
+      ta: "விவசாயி பதிവേடு",
+      mr: "शेतकरी रोजनिशी",
+      bn: "কৃষি ইতিহাস ডায়েরি",
+      ml: "കർഷക ലോഗ്ബുക്ക്",
+      gu: "ખેડૂત લોગબુક",
+      pa: "ਕਿਸਾਨ ਲੌਗਬੁੱਕ"
+    };
+    return lbls[lang || "en"] || lbls["en"];
   };
 
   // Fetch weather automatically when active tab is dashboard or weather, or region changes
@@ -347,7 +985,7 @@ export default function App() {
           };
           setSelectedRegion(liveRegion);
         } catch (err) {
-          console.error("Failed reverse geocoding location:", err);
+          console.warn("Failed reverse geocoding location:", err);
           const liveRegion = { 
             name: `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`, 
             lat: lat.toString(), 
@@ -359,7 +997,7 @@ export default function App() {
         }
       },
       (error) => {
-        console.error("Geolocation error:", error);
+        console.warn("Geolocation error:", error);
         let msg = "Could not access location. Please permit GPS permissions in your browser.";
         if (error.code === error.PERMISSION_DENIED) {
           msg = "Location permission denied. Please allow location access in your browser settings.";
@@ -517,6 +1155,21 @@ export default function App() {
       const data = await response.json();
       setVoiceInputResponse(data);
 
+      // Persist the query to history logs in local state + localStorage safely
+      setQueryHistory((prev) => {
+        const newQuery: MitraQueryAttempt = {
+          id: `query_${Date.now()}`,
+          query: textQuery,
+          solutionText: data.solutionText,
+          audioBytes: data.audioBytes,
+          timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) + ", " + new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short' }),
+          languageSelected: lang || "en"
+        };
+        const updated = [newQuery, ...prev];
+        localStorage.setItem("krishi_queries", JSON.stringify(updated));
+        return updated;
+      });
+
       if (data.audioBytes) {
         const mp3BlobUri = `data:audio/mp3;base64,${data.audioBytes}`;
         setAudioUrl(mp3BlobUri);
@@ -526,6 +1179,74 @@ export default function App() {
     } finally {
       setIsSolvingVoice(false);
     }
+  };
+
+  // 2b. AI Chatbot Dialogue Actions
+  const handleSendChatbotMessage = async () => {
+    if (!chatbotInput.trim() || isChatbotResponding) return;
+
+    const userMsgText = chatbotInput.trim();
+    setChatbotInput("");
+
+    const timestampStr = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) + ", " + new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+
+    const userMsg: ChatMessage = {
+      id: "chatbot_user_" + Date.now(),
+      sender: "farmer",
+      text: userMsgText,
+      timestamp: timestampStr
+    };
+
+    const updatedMessages = [...chatbotMessages, userMsg];
+    setChatbotMessages(updatedMessages);
+    localStorage.setItem("krishi_chatbot_messages", JSON.stringify(updatedMessages));
+    setIsChatbotResponding(true);
+
+    try {
+      const response = await fetch("/api/mitra-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: updatedMessages,
+          language: lang || "en"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Chat service is temporarily congested. Please retry.");
+      }
+
+      const botReply = await response.json();
+      
+      const botMsg: ChatMessage = {
+        id: "chatbot_bot_" + Date.now(),
+        sender: "expert",
+        text: botReply.text,
+        timestamp: new Date(botReply.timestamp || Date.now()).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) + ", " + new Date(botReply.timestamp || Date.now()).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })
+      };
+
+      const finalMessages = [...updatedMessages, botMsg];
+      setChatbotMessages(finalMessages);
+      localStorage.setItem("krishi_chatbot_messages", JSON.stringify(finalMessages));
+    } catch (err: any) {
+      console.warn("Chatbot error:", err);
+      const errorMsg: ChatMessage = {
+        id: "chatbot_err_" + Date.now(),
+        sender: "expert",
+        text: "I am having temporary trouble connecting to the satellite link. Please check your internet connection or ask again shortly.",
+        timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) + ", " + new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short' })
+      };
+      const finalMsgWithErr = [...updatedMessages, errorMsg];
+      setChatbotMessages(finalMsgWithErr);
+      localStorage.setItem("krishi_chatbot_messages", JSON.stringify(finalMsgWithErr));
+    } finally {
+      setIsChatbotResponding(false);
+    }
+  };
+
+  const handleClearChatbotHistory = () => {
+    setChatbotMessages([]);
+    localStorage.removeItem("krishi_chatbot_messages");
   };
 
   // Speech Recognition and transcription system for listing farmer's words in real-time
@@ -799,8 +1520,13 @@ export default function App() {
       <header className="bg-gradient-to-r from-emerald-800 to-green-700 text-white shadow-md sticky top-0 z-40 transition-all duration-300" id="header_section">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab("dashboard")}>
-            <div className="bg-white/15 p-2 rounded-xl border border-white/10" id="app_logo_container">
-              <Sprout className="w-8 h-8 text-yellow-300 animate-pulse" />
+            <div className="bg-white/10 p-0.5 rounded-xl border border-white/20 overflow-hidden shadow-inner shrink-0" id="app_logo_container">
+              <img 
+                src={aiFarmerShakingImg} 
+                alt="KrishiMitra Handshake Logo" 
+                referrerPolicy="no-referrer"
+                className="w-9 h-9 object-cover rounded-lg"
+              />
             </div>
             <div>
               <h1 className="text-2xl font-display font-bold tracking-tight">KrishiMitra</h1>
@@ -829,14 +1555,14 @@ export default function App() {
             <div className="flex items-center space-x-2 overflow-hidden truncate">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
               <span className="truncate">
-                <strong>{selectedRegion.name} advice:</strong> {weatherData.farmingAdvice.spraying}
+                <strong>{selectedRegion.name} {t("advice")}</strong> {weatherData.farmingAdvice.spraying}
               </span>
             </div>
             <button 
               onClick={() => setActiveTab("weather")} 
               className="text-emerald-700 hover:text-emerald-800 font-bold shrink-0 items-center flex gap-1 transform transition hover:translate-x-0.5"
             >
-              View Forecast <ArrowRight className="w-3.5 h-3.5" />
+              <span>{t("viewForecast")}</span> <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -896,7 +1622,7 @@ export default function App() {
         {/* SIDE BAR DESKTOP / TOP BAR MOBILE FOR NAVIGATION */}
         <section className="md:col-span-1 flex flex-col space-y-3" id="navigation_navigation">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">Farmer Toolbelt</h4>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">{t("farmerToolbelt")}</h4>
             <nav className="flex flex-row md:flex-col overflow-x-auto md:overflow-visible gap-1.5 pb-2 md:pb-0" id="toolbelt_nav">
               <button
                 id="nav_dashboard"
@@ -908,7 +1634,7 @@ export default function App() {
                 }`}
               >
                 <Compass className="w-5 h-5 shrink-0" />
-                <span>Farmer Board</span>
+                <span>{t("farmerBoard")}</span>
               </button>
 
               <button
@@ -935,6 +1661,19 @@ export default function App() {
               >
                 <Mic className="w-5 h-5 shrink-0" />
                 <span>{t("voiceProblem")}</span>
+              </button>
+
+              <button
+                id="nav_chatbot"
+                onClick={() => { setActiveTab("chatbot"); setSelectedExpert(null); }}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold whitespace-nowrap transition-all w-full ${
+                  activeTab === "chatbot"
+                    ? "bg-emerald-600 text-white shadow-emerald-200"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Bot className="w-5 h-5 shrink-0" />
+                <span>{t("aiChatbot")}</span>
               </button>
 
               <button
@@ -975,22 +1714,35 @@ export default function App() {
                 <Users className="w-5 h-5 shrink-0" />
                 <span>{t("experts")}</span>
               </button>
+
+              <button
+                id="nav_history"
+                onClick={() => { setActiveTab("history"); setSelectedExpert(null); }}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold whitespace-nowrap transition-all w-full ${
+                  activeTab === "history"
+                    ? "bg-emerald-600 text-white shadow-emerald-200"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Clock className="w-5 h-5 shrink-0" />
+                <span>{getLocalHistoryLabel()}</span>
+              </button>
             </nav>
           </div>
 
           {/* Mini helper box */}
           <div className="hidden md:block bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 text-white shadow-sm border border-slate-700/50">
             <h5 className="font-semibold text-sm mb-1 text-green-300 flex items-center gap-1.5 justify-between">
-              <span>GPS Telemetry</span>
+              <span>{t("gpsTelemetry")}</span>
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full uppercase">Enabled</span>
             </h5>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              KrishiMitra matches regional agronomist distance matrices and open meteorological vectors automatically.
+              {t("gpsTelemetryDesc")}
             </p>
             <div className="mt-3 text-[11px] bg-slate-850 p-2 rounded-lg border border-slate-700/60 font-mono text-slate-400 flex flex-col space-y-1">
               <span>LAT: {selectedRegion.lat}° N</span>
               <span>LNG: {selectedRegion.lng}° E</span>
-              <span>ZONE: Indian Semi-Arid</span>
+              <span>{t("zone")}: {t("indianSemiArid")}</span>
             </div>
           </div>
         </section>
@@ -1003,29 +1755,53 @@ export default function App() {
             <div className="space-y-6" id="dashboard_tab">
               
               {/* HEADING ACCENT */}
-              <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-6" id="welcome_accent_dashboard">
-                <div className="space-y-2">
-                  <span className="bg-white/10 text-yellow-300 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
-                    KrishiMitra Smart Farming
-                  </span>
-                  <h2 className="text-3xl font-display font-bold">Namaste Farmer Friend!</h2>
-                  <p className="text-sm text-green-100 max-w-md">
-                    Diagnose crop disease instantly, verify tailored weather alerts, consult KVK scientists, or explore seed maps in your mother tongue.
-                  </p>
+              <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 text-white shadow-lg grid grid-cols-1 lg:grid-cols-3 items-center gap-6 overflow-hidden" id="welcome_accent_dashboard">
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="space-y-2">
+                    <span className="bg-white/10 text-yellow-300 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+                      KrishiMitra | {t("tagline")}
+                    </span>
+                    <h2 className="text-3xl font-display font-bold">{t("namasteFriend")}</h2>
+                    <p className="text-sm text-green-100 max-w-xl leading-relaxed">
+                      {t("customDashboardSub")}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => setActiveTab("scan")}
+                      className="bg-white text-emerald-800 font-bold text-xs px-4 py-3 rounded-xl hover:bg-emerald-50 transition transform hover:-translate-y-0.5 flex items-center gap-1.5 shadow-md"
+                    >
+                      <Camera className="w-4 h-4" />
+                      {t("cropScan")}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("voice")}
+                      className="bg-emerald-950/40 backdrop-blur-lg border border-emerald-400/20 text-yellow-300 font-bold text-xs px-4 py-3 rounded-xl hover:bg-emerald-950 transition transform hover:-translate-y-0.5 flex items-center gap-1.5 shadow-md"
+                    >
+                      <Mic className="w-4 h-4" />
+                      {t("voiceProblem")}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("chatbot")}
+                      className="bg-teal-950/40 backdrop-blur-lg border border-teal-400/20 text-teal-200 font-bold text-xs px-4 py-3 rounded-xl hover:bg-teal-950 transition transform hover:-translate-y-0.5 flex items-center gap-1.5 shadow-md"
+                    >
+                      <Bot className="w-4 h-4 font-bold animate-pulse text-teal-300" />
+                      <span>{t("aiChatbot")}</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-3 shrink-0">
-                  <button
-                    onClick={() => setActiveTab("scan")}
-                    className="bg-white text-emerald-800 font-bold text-xs px-4 py-3 rounded-xl hover:bg-emerald-50 transition transform hover:-translate-y-0.5"
-                  >
-                    Scan Crop Disease
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("voice")}
-                    className="bg-emerald-900/60 backdrop-blur-lg border border-emerald-400/20 text-yellow-300 font-bold text-xs px-4 py-3 rounded-xl hover:bg-emerald-950 transition transform hover:-translate-y-0.5"
-                  >
-                    Speak to Mitra
-                  </button>
+
+                {/* Handshake Art Illustration visually displayed under modern frame */}
+                <div className="lg:col-span-1 hidden lg:flex justify-end relative" id="welcome_accent_image_wrap">
+                  <div className="w-56 h-36 overflow-hidden rounded-xl border border-white/20 shadow-xl relative group">
+                    <img 
+                      src={aiFarmerShakingImg} 
+                      alt="AI Shaking Hands with Indian Farmer" 
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover transform group-hover:scale-105 transition duration-500" 
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-transparent"></div>
+                  </div>
                 </div>
               </div>
 
@@ -1037,17 +1813,21 @@ export default function App() {
                   <div>
                     <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3 mb-4">
                       <div className="space-y-0.5">
-                        <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">Met Forecast</span>
+                        <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">{t("metForecast")}</span>
                         <h3 className="font-display font-bold text-lg text-slate-800 flex items-center gap-1">
                           <CloudSun className="w-5 h-5 text-emerald-600" />
-                          <span>Weather Strategy</span>
+                          <span>{t("weatherStrategy")}</span>
                         </h3>
+                        <div className="text-[10px] text-slate-500 font-medium mt-1">
+                          {t("location")}: <span className="font-semibold text-slate-800">{selectedRegion.name}</span>
+                          <span className="block text-[9px] text-slate-400 font-mono mt-0.5">{t("coordinates")}: Lat {Number(selectedRegion.lat).toFixed(4)}°, Lng {Number(selectedRegion.lng).toFixed(4)}°</span>
+                        </div>
                       </div>
                       
                       <div className="flex items-center gap-1.5">
                         <button
                           id="dash_gps_btn"
-                          title="Detect Current Live GPS Location"
+                          title={t("gpsLocation")}
                           onClick={handleDetectLiveLocation}
                           disabled={isDetectingLocation}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 p-2 rounded-xl transition duration-150 relative group flex items-center justify-center border border-emerald-100 disabled:opacity-50"
@@ -1058,33 +1838,16 @@ export default function App() {
                             <MapPin className="w-4 h-4" />
                           )}
                           <span className="absolute bottom-10 right-0 bg-slate-900 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition duration-150 pointer-events-none whitespace-nowrap font-medium shadow-sm z-30">
-                            Detect Live GPS Location
+                            {t("gpsLocation")}
                           </span>
                         </button>
-
-                        <select
-                          id="weather_loc_selector_dash"
-                          value={selectedRegion.name}
-                          onChange={(e) => {
-                            const matched = [...REGIONS_LIST, selectedRegion].find(r => r.name === e.target.value);
-                            if (matched) setSelectedRegion(matched);
-                          }}
-                          className="bg-slate-100 hover:bg-slate-200 border-none text-xs font-bold px-2.5 py-1.5 rounded-xl text-slate-700 focus:ring-1 focus:ring-emerald-500 max-w-[130px] truncate"
-                        >
-                          {REGIONS_LIST.map(r => (
-                            <option key={r.name} value={r.name}>{r.name.split(" ")[0]}</option>
-                          ))}
-                          {isCustomLocation && (
-                            <option value={selectedRegion.name}>📍 {selectedRegion.name.split(",")[0]}</option>
-                          )}
-                        </select>
                       </div>
                     </div>
 
                     {isWeatherLoading ? (
                       <div className="flex flex-col items-center justify-center py-8 text-slate-400">
                         <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-2" />
-                        <span className="text-xs font-medium">Downloading atmospheric models...</span>
+                        <span className="text-xs font-medium">{t("atmosphereModelsLoading")}</span>
                       </div>
                     ) : weatherError ? (
                       <div className="bg-red-50 text-red-700 p-4 rounded-xl text-xs font-medium border border-red-100">
@@ -1105,12 +1868,19 @@ export default function App() {
                         <div className="space-y-2">
                           <div className="text-xs leading-relaxed text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-start gap-2">
                             <span className="text-emerald-600 font-black shrink-0">✔</span>
-                            <span><strong>Spraying:</strong> {weatherData.farmingAdvice.spraying}</span>
+                            <span><strong>{t("spraying")}:</strong> {weatherData.farmingAdvice.spraying}</span>
                           </div>
                           <div className="text-xs leading-relaxed text-slate-700 bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-start gap-2">
                             <span className="text-emerald-600 font-black shrink-0">✔</span>
-                            <span><strong>Watering:</strong> {weatherData.farmingAdvice.irrigation}</span>
+                            <span><strong>{t("watering")}:</strong> {weatherData.farmingAdvice.irrigation}</span>
                           </div>
+                        </div>
+
+                        {/* Exact Weather API Details and Location attribution */}
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col gap-1 text-[9px] text-slate-400 font-mono leading-tight">
+                          <div><strong className="text-slate-500">Weather API:</strong> Open-Meteo Meteorological Forecast</div>
+                          <div><strong className="text-slate-500">Reverse Geocoding:</strong> BigDataCloud Location Geocoder</div>
+                          <div><strong className="text-slate-500">Cognitive Service:</strong> Gemini 3.5 Flash Model</div>
                         </div>
                       </div>
                     ) : null}
@@ -1120,7 +1890,7 @@ export default function App() {
                     onClick={() => setActiveTab("weather")}
                     className="mt-4 text-emerald-700 hover:text-emerald-800 font-bold text-xs flex items-center justify-end gap-1"
                   >
-                    <span>Full 7-Day Plan</span> <ArrowRight className="w-4 h-4" />
+                    <span>{t("full7DayPlan")}</span> <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -1128,14 +1898,14 @@ export default function App() {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between" id="bento_scan">
                   <div>
                     <div className="space-y-0.5 mb-3">
-                      <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">Pathology</span>
+                      <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">{t("pathology")}</span>
                       <h3 className="font-display font-bold text-lg text-slate-800 flex items-center gap-1.5">
                         <Sprout className="w-5 h-5 text-emerald-600" />
-                        <span>Instant Crop Scan</span>
+                        <span>{t("instantCropScan")}</span>
                       </h3>
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                      Failing foliage? Snap or choose a preloaded crop specimen. Gemini immediately identifies pest decays with actionable treatment lists.
+                      {t("bentoScanDesc")}
                     </p>
 
                     <div className="grid grid-cols-3 gap-2">
@@ -1164,7 +1934,7 @@ export default function App() {
                     onClick={() => setActiveTab("scan")}
                     className="mt-4 text-emerald-700 hover:text-emerald-800 font-bold text-xs flex items-center justify-end gap-1"
                   >
-                    <span>Diagnosis Suite</span> <ArrowRight className="w-4 h-4" />
+                    <span>{t("diagnosisSuite")}</span> <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -1172,41 +1942,61 @@ export default function App() {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60" id="bento_shops">
                   <div className="flex justify-between items-start mb-4">
                     <div className="space-y-0.5">
-                      <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">Agri Trade</span>
+                      <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">{t("agriTrade")}</span>
                       <h3 className="font-display font-bold text-lg text-slate-800 flex items-center gap-1">
                         <Store className="w-5 h-5 text-emerald-600" />
-                        <span>Registered Agri-Shops</span>
+                        <span>{t("registeredAgriShops")}</span>
                       </h3>
                     </div>
                     <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block">
-                      {SAMPLE_SHOPS.length} nearby
+                      {SAMPLE_SHOPS.length} {t("nearby")}
                     </span>
                   </div>
                   
                   <div className="space-y-2.5">
-                    {SAMPLE_SHOPS.slice(0, 2).map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => { setActiveTab("shops"); }}
-                        className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 hover:cursor-pointer border border-slate-100 transition flex justify-between items-center"
-                      >
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-800">{item.name}</h4>
-                          <p className="text-[10px] text-slate-500 max-w-[200px] truncate">{item.address}</p>
+                    {(() => {
+                      const cleanLocation = selectedRegion.name ? selectedRegion.name.replace(/\(|\)/g, "").trim() : "Local Area";
+                      const dynamicShops = [
+                        {
+                          id: "dyn_bento_1",
+                          name: "Jai Kisaan Krishi Seva Kendra",
+                          address: `Main Market Road, ${cleanLocation}`,
+                          distance: "1.2 km away",
+                          rating: 4.8
+                        },
+                        {
+                          id: "dyn_bento_2",
+                          name: "Shyam Seed & Fertilizer Depot",
+                          address: `Old Grain Market Road, ${cleanLocation}`,
+                          distance: "2.8 km away",
+                          rating: 4.5
+                        }
+                      ];
+                      
+                      return dynamicShops.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => { setActiveTab("shops"); }}
+                          className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 hover:cursor-pointer border border-slate-100 transition flex justify-between items-center"
+                        >
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-800">{item.name}</h4>
+                            <p className="text-[10px] text-slate-500 max-w-[200px] truncate">{item.address}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-bold block text-emerald-700">{item.distance}</span>
+                            <span className="text-[10px] text-amber-600 font-bold">★ {item.rating}</span>
+                          </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-xs font-bold block text-emerald-700">{item.distance}</span>
-                          <span className="text-[10px] text-amber-600 font-bold">★ {item.rating}</span>
-                        </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
 
                   <button
                     onClick={() => setActiveTab("shops")}
                     className="mt-4 text-emerald-700 hover:text-emerald-800 font-bold text-xs flex items-center justify-end gap-1"
                   >
-                    <span>Launch Navigation Route</span> <ArrowRight className="w-4 h-4" />
+                    <span>{t("launchRoute")}</span> <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -1215,33 +2005,33 @@ export default function App() {
                   <div>
                     <div className="flex justify-between items-start mb-4">
                       <div className="space-y-0.5">
-                        <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">Support</span>
+                        <span className="text-xxs font-extrabold uppercase text-slate-400 tracking-wider">{t("support")}</span>
                         <h3 className="font-display font-bold text-lg text-slate-800 flex items-center gap-1.5">
                           <Users className="w-5 h-5 text-emerald-600" />
-                          <span>Agri Science Advisors</span>
+                          <span>{t("agriScienceAdvisors")}</span>
                         </h3>
                       </div>
                       <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block">
-                        3 Certified
+                        3 {t("certified")}
                       </span>
                     </div>
 
                     {appointments.length > 0 ? (
                       <div className="space-y-2.5">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">Booked Appointments</span>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">{t("bookedAppointments")}</span>
                         {appointments.slice(0, 2).map((apt) => (
                           <div key={apt.id} className="p-2.5 rounded-xl border border-yellow-200 bg-yellow-50/40 flex justify-between items-center text-xs">
                             <div>
                               <p className="font-bold text-slate-800">{apt.expertName}</p>
                               <p className="text-[10px] text-slate-500">{apt.date} • {apt.timeSlot}</p>
                             </div>
-                            <span className="bg-green-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">Approved</span>
+                            <span className="bg-green-600 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">{t("approved")}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                        Consult with state agronomists or certified farm doctors. Book direct audio/video calls or instant chats for high-quality soil reports.
+                        {t("consultAdvisors")}
                       </p>
                     )}
                   </div>
@@ -1250,7 +2040,7 @@ export default function App() {
                     onClick={() => setActiveTab("experts")}
                     className="mt-4 text-emerald-700 hover:text-emerald-800 font-bold text-xs flex items-center justify-end gap-1"
                   >
-                    <span>Consult Experts</span> <ArrowRight className="w-4 h-4" />
+                    <span>{t("consultExperts")}</span> <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -1261,7 +2051,7 @@ export default function App() {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60" id="recent_scans_summary">
                   <h3 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-emerald-600" />
-                    <span>Previous Diagnostics</span>
+                    <span>{t("previousDiagnostics")}</span>
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {scanHistory.slice(0, 3).map((item) => (
@@ -1649,6 +2439,200 @@ export default function App() {
           )}
 
 
+          {/* ==================== MITRA AI CHATBOT TAB ==================== */}
+          {activeTab === "chatbot" && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60 flex flex-col h-[650px]" id="chatbot_tab">
+              {/* Header */}
+              <div className="flex justify-between items-center pb-4 border-b border-slate-100 shrink-0" id="chatbot_header">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-xl border border-emerald-100">
+                      <Bot className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-ping"></span>
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-display font-bold text-slate-800 leading-tight">
+                      {t("aiChatbot")}
+                    </h2>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                        ● Online Advisor
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {chatbotMessages.length > 0 && (
+                  <button
+                    onClick={handleClearChatbotHistory}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 transition"
+                  >
+                    Clear History
+                  </button>
+                )}
+              </div>
+
+              {/* Subtitle */}
+              <div className="bg-teal-50/50 p-3 rounded-xl border border-teal-100/50 mt-3 text-xs text-teal-800 shrink-0 flex items-start gap-2" id="chatbot_banner">
+                <div className="bg-teal-100 text-teal-700 p-1 rounded-md mt-0.5 font-bold">AI</div>
+                <p className="leading-relaxed font-medium">
+                  {t("aiChatbotSub")}
+                </p>
+              </div>
+
+              {/* Chat messages */}
+              <div
+                className="flex-1 overflow-y-auto mt-4 pr-1 space-y-4 min-h-0 py-2 scrollbar-thin scrollbar-thumb-slate-200"
+                id="chatbot_msg_container"
+              >
+                {chatbotMessages.length === 0 ? (
+                  /* Welcome card */
+                  <div className="space-y-4 py-6" id="chatbot_welcome_screen">
+                    {/* Bot Greeting Bubble */}
+                    <div className="flex items-start space-x-3 max-w-[85%]">
+                      <div className="bg-emerald-600 text-white min-w-9 h-9 font-bold rounded-xl flex items-center justify-center shrink-0 shadow-sm text-sm">
+                        KM
+                      </div>
+                      <div className="space-y-4">
+                        <div className="bg-slate-50 border border-slate-100 text-slate-800 p-4 rounded-2xl rounded-tl-sm text-sm shadow-sm leading-relaxed whitespace-pre-line">
+                          {t("aiChatbotGreeting")}
+                        </div>
+                        <div className="rounded-xl overflow-hidden border border-slate-100 shadow-md max-w-sm">
+                          <img 
+                            src={aiFarmerShakingImg} 
+                            alt="AI Shaking Hands with Indian Farmer" 
+                            referrerPolicy="no-referrer"
+                            className="w-full h-44 object-cover" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Suggestions Section */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 px-1 sm:px-12">
+                      <button
+                        onClick={() => setChatbotInput("How can I double organic matter in my clay soil?")}
+                        className="p-3 bg-white hover:bg-emerald-50/35 border border-slate-100 hover:border-emerald-200 rounded-xl text-left transition text-xs text-slate-600 leading-normal focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        🌱 <strong className="text-slate-800 block mb-0.5 font-bold">Soil Quality improvement</strong>
+                        How to enrich sandy/clayey soil with compost and local farmyard manure.
+                      </button>
+                      <button
+                        onClick={() => setChatbotInput("What are the best pesticides for Early Blight in tomato crops?")}
+                        className="p-3 bg-white hover:bg-emerald-50/35 border border-slate-100 hover:border-emerald-200 rounded-xl text-left transition text-xs text-slate-600 leading-normal focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        🐛 <strong className="text-slate-800 block mb-0.5 font-bold">Pest & Blight Remedies</strong>
+                        Identify organic spray dilutions or safe fungicides to battle leaf blights.
+                      </button>
+                      <button
+                        onClick={() => setChatbotInput("Are there any subsidies for drip irrigation systems under PMKSY?")}
+                        className="p-3 bg-white hover:bg-emerald-50/35 border border-slate-100 hover:border-emerald-200 rounded-xl text-left transition text-xs text-slate-600 leading-normal focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        🏛️ <strong className="text-slate-800 block mb-0.5 font-bold">Government Subsidies</strong>
+                        Check out central and state farm policy details for drip tools or solar pumps.
+                      </button>
+                      <button
+                        onClick={() => setChatbotInput("How frequently should I irrigate wheat seeds in warm weather?")}
+                        className="p-3 bg-white hover:bg-emerald-50/35 border border-slate-100 hover:border-emerald-200 rounded-xl text-left transition text-xs text-slate-600 leading-normal focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        💧 <strong className="text-slate-800 block mb-0.5 font-bold">Smart Irrigation frequency</strong>
+                        Tips on keeping water coverage balanced depending on seed germination conditions.
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Conversations */
+                  chatbotMessages.map((m) => {
+                    const isFarmer = m.sender === "farmer";
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex items-start space-x-3 max-w-[85%] ${
+                          isFarmer ? "ml-auto flex-row-reverse space-x-reverse" : ""
+                        }`}
+                        id={`msg_${m.id}`}
+                      >
+                        <div
+                          className={`min-w-9 h-9 font-bold rounded-xl flex items-center justify-center shrink-0 shadow-sm text-sm ${
+                            isFarmer ? "bg-slate-800 text-white" : "bg-emerald-600 text-white"
+                          }`}
+                        >
+                          {isFarmer ? "F" : "KM"}
+                        </div>
+                        <div
+                          className={`p-3.5 rounded-2xl text-sm shadow-sm leading-relaxed whitespace-pre-line ${
+                            isFarmer
+                              ? "bg-slate-800 text-slate-50 rounded-tr-sm"
+                              : "bg-slate-50 border border-slate-100 text-slate-800 rounded-tl-sm"
+                          }`}
+                        >
+                          <p>{m.text}</p>
+                          <span
+                            className={`text-[9px] block text-right mt-1.5 font-semibold ${
+                              isFarmer ? "text-slate-400" : "text-slate-400"
+                            }`}
+                          >
+                            {m.timestamp}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+
+                {/* Loading response */}
+                {isChatbotResponding && (
+                  <div className="flex items-start space-x-3 max-w-[85%]" id="chatbot_loading_indicator">
+                    <div className="bg-emerald-600 text-white min-w-9 h-9 font-bold rounded-xl flex items-center justify-center shrink-0 shadow-sm text-sm">
+                      KM
+                    </div>
+                    <div className="bg-slate-50 border border-slate-100 text-slate-500 p-4 rounded-2xl rounded-tl-sm text-sm flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                      <span>KrishiMitra is reviewing crop databases...</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Anchor for scroll */}
+                <div ref={chatbotEndRef} />
+              </div>
+
+              {/* Input Action Form */}
+              <div className="pt-4 border-t border-slate-100 shrink-0 mt-2" id="chatbot_input_box">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendChatbotMessage();
+                  }}
+                  className="flex space-x-2"
+                >
+                  <input
+                    type="text"
+                    value={chatbotInput}
+                    onChange={(e) => setChatbotInput(e.target.value)}
+                    disabled={isChatbotResponding}
+                    placeholder={t("aiChatbotPlaceholder")}
+                    className="flex-1 bg-slate-50 text-slate-800 placeholder-slate-400 text-sm px-4 py-3 rounded-xl border border-slate-200/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition disabled:opacity-60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isChatbotResponding || !chatbotInput.trim()}
+                    className="bg-emerald-600 text-white p-3 rounded-xl hover:bg-emerald-700 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center shrink-0"
+                  >
+                    {isChatbotResponding ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+
           {/* ==================== WEATHER ADVICE TAB ==================== */}
           {activeTab === "weather" && (
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60 space-y-6" id="weather_tab">
@@ -1687,23 +2671,6 @@ export default function App() {
                       </>
                     )}
                   </button>
-
-                  <select
-                    id="weather_loc_selector_full"
-                    value={selectedRegion.name}
-                    onChange={(e) => {
-                      const found = [...REGIONS_LIST, selectedRegion].find(r => r.name === e.target.value);
-                      if (found) setSelectedRegion(found);
-                    }}
-                    className="bg-slate-100 font-bold text-xs p-2 rounded-xl text-slate-800 focus:ring-1 focus:ring-emerald-500 border-none"
-                  >
-                    {REGIONS_LIST.map(r => (
-                      <option key={r.name} value={r.name}>{r.name}</option>
-                    ))}
-                    {isCustomLocation && (
-                      <option value={selectedRegion.name}>📍 {selectedRegion.name}</option>
-                    )}
-                  </select>
                 </div>
               </div>
 
@@ -1729,7 +2696,10 @@ export default function App() {
                           {t("current")}
                         </span>
                         <h3 className="text-xl font-display font-black mt-2">{selectedRegion.name}</h3>
-                        <p className="text-xxs text-green-200/90 font-medium">Synced with meteorological networks</p>
+                        <div className="text-[11px] text-green-200/95 font-mono mt-0.5">
+                          Lat: {Number(selectedRegion.lat).toFixed(4)}° N, Lng: {Number(selectedRegion.lng).toFixed(4)}° E
+                        </div>
+                        <p className="text-xxs text-green-200/80 font-medium mt-1">Synced with meteorological networks</p>
                         
                         <div className="text-4xl font-display font-black tracking-tight text-yellow-300 my-4">
                           {weatherData.temp}°C
@@ -1737,9 +2707,17 @@ export default function App() {
                         <span className="font-bold text-sm block">{weatherData.condition}</span>
                       </div>
 
-                      <div className="mt-4 pt-4 border-t border-white/10 text-xxs text-slate-300 space-y-1">
-                        <p>Humidity: {weatherData.humidity}%</p>
-                        <p>Wind Speed: {weatherData.windSpeed} km/h</p>
+                      <div className="mt-4 pt-4 border-t border-white/10 text-xxs text-slate-300 space-y-2">
+                        <div>
+                          <p>Humidity: {weatherData.humidity}%</p>
+                          <p>Wind Speed: {weatherData.windSpeed} km/h</p>
+                        </div>
+                        <div className="pt-2 border-t border-white/5 text-[9px] text-green-200/90 font-mono space-y-0.5 leading-tight">
+                          <span className="block font-bold text-white uppercase tracking-wider text-[8px] mb-1">API Integrations:</span>
+                          <span className="block">• Forecast: Open-Meteo Weather API</span>
+                          <span className="block">• Geocoding: BigDataCloud Reverse Geocoder</span>
+                          <span className="block">• AI Advice: Gemini 3.5 Flash Engine</span>
+                        </div>
                       </div>
                     </div>
 
@@ -1812,7 +2790,18 @@ export default function App() {
                 </p>
               </div>
 
-              <NearbyShopMap activeLang={lang || "en"} />
+              <NearbyShopMap
+                activeLang={lang || "en"}
+                initialFarmerCoords={{ lat: Number(selectedRegion.lat), lng: Number(selectedRegion.lng) }}
+                farmerLocationName={selectedRegion.name}
+                onLocationDetected={(coords, name) => {
+                  setSelectedRegion({
+                    name,
+                    lat: coords.lat.toString(),
+                    lng: coords.lng.toString()
+                  });
+                }}
+              />
             </div>
           )}
 
@@ -1923,10 +2912,42 @@ export default function App() {
               ) : (
                 /* Experts list grid */
                 <div className="space-y-6" id="experts_list_wrapper">
-                  <h3 className="font-display font-bold text-base text-slate-800">{t("expertList")}</h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 className="font-display font-bold text-base text-slate-800">{t("expertList")}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        id="add_expert_trigger_btn"
+                        onClick={() => {
+                          setShowAddExpertModal(true);
+                          setNewExpertName("");
+                          setNewExpertRole("Krishi Vigyan Kendra (KVK) Scientist");
+                          setNewExpertSpecialty("");
+                          setNewExpertDistance("0.8 km");
+                          setNewExpertPhone("");
+                          setNewExpertOrg("");
+                          setNewExpertLang(lang || "en");
+                          setNewExpertOnline(true);
+                          setNewExpertRating(5.0);
+                          setNewExpertAvatar("");
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xxs px-3.5 py-1.5 rounded-xl border border-emerald-500/10 flex items-center gap-1.5 shadow-sm transition"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Register Expert</span>
+                      </button>
+
+                      <div className="bg-emerald-50 text-emerald-800 text-xxs font-black px-2.5 py-1 rounded-xl border border-emerald-100 flex items-center gap-1">
+                        <span>Matched language:</span>
+                        <span className="font-extrabold underline">{LANGUAGES.find(l => l.code === (lang || "en"))?.name || "English"}</span>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {MOCK_EXPERTS.map((expert) => (
+                    {[
+                      ...(LOCALIZED_EXPERTS[lang || "en"] || LOCALIZED_EXPERTS["en"]),
+                      ...addedExperts.filter(e => !e.language || e.language === (lang || "en"))
+                    ].map((expert) => (
                       <div
                         key={expert.id}
                         id={`expert_card_${expert.id}`}
@@ -1958,6 +2979,18 @@ export default function App() {
                           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[10px] text-slate-600 leading-tight space-y-1 mt-3">
                             <span className="block font-bold uppercase text-slate-400">Main Focus Specialty:</span>
                             <p>{expert.specialty}</p>
+
+                            <div className="flex flex-wrap items-center gap-1 mt-2.5 pt-2 border-t border-slate-200/40">
+                              <span className="text-[8px] font-bold uppercase text-slate-400 mr-1">Spoken:</span>
+                              <span className="bg-emerald-100/70 text-emerald-800 text-[9px] font-black px-1.5 py-0.5 rounded-md border border-emerald-200/55">
+                                {LANGUAGES.find(l => l.code === (lang || "en"))?.nativeName || "English"}
+                              </span>
+                              {lang !== "en" && (
+                                <span className="bg-slate-100 text-slate-600 text-[9px] font-medium px-1.5 py-0.5 rounded-md">
+                                  English
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -1974,7 +3007,7 @@ export default function App() {
                                   [expertId]: [{
                                     id: "intro_msg",
                                     sender: "expert",
-                                    text: `Namaste farmer brother/sister, Dr. Mitra here. Feel free to describe or upload any details of leaf wilt, organic manure concerns or sugarcane insect bites.`,
+                                    text: EXPERT_GREETINGS[lang || "en"] || EXPERT_GREETINGS["en"],
                                     timestamp: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
                                   }]
                                 });
@@ -2028,6 +3061,335 @@ export default function App() {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* ==================== FARMER LOGBOOK HISTORY TAB ==================== */}
+          {activeTab === "history" && (
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60 space-y-6 animate-fade-in" id="history_workspace_tab">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-display font-bold text-slate-800 flex items-center gap-2">
+                    <Clock className="w-6 h-6 text-emerald-600" />
+                    <span>{getLocalHistoryLabel()}</span>
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    A comprehensive local archive of your crop diagnoses, voice queries, and expert call scheduling record
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (confirm("Clear your entire Farmer Logbook history logs? This cannot be undone.")) {
+                        setScanHistory([]);
+                        setQueryHistory([]);
+                        setAppointments([]);
+                        localStorage.removeItem("krishi_scans");
+                        localStorage.removeItem("krishi_queries");
+                        localStorage.removeItem("krishi_appts");
+                      }
+                    }}
+                    className="bg-red-50 hover:bg-red-105 text-red-600 border border-red-200 text-xxs font-extrabold px-3 py-1.5 rounded-xl transition"
+                  >
+                    Clear All History
+                  </button>
+                </div>
+              </div>
+
+              {/* Statistical overview row */}
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => setHistorySubTab("scans")}
+                  className={`p-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1 ${
+                    historySubTab === "scans"
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                      : "bg-slate-50/50 border-slate-100 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Crop Scans</span>
+                  <span className="text-xl font-display font-black">{scanHistory.length}</span>
+                </button>
+
+                <button
+                  onClick={() => setHistorySubTab("queries")}
+                  className={`p-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1 ${
+                    historySubTab === "queries"
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                      : "bg-slate-50/50 border-slate-100 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mitra Voice</span>
+                  <span className="text-xl font-display font-black">{queryHistory.length}</span>
+                </button>
+
+                <button
+                  onClick={() => setHistorySubTab("appointments")}
+                  className={`p-3.5 rounded-xl border text-center transition flex flex-col items-center justify-center space-y-1 ${
+                    historySubTab === "appointments"
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                      : "bg-slate-50/50 border-slate-100 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Expert Calls</span>
+                  <span className="text-xl font-display font-black">{appointments.length}</span>
+                </button>
+              </div>
+
+              {/* Subtab main display view */}
+              <div className="space-y-4">
+                
+                {/* 1. SCANS DISPLAY LOG */}
+                {historySubTab === "scans" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-display font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                        <Sprout className="w-4 h-4 text-emerald-600" />
+                        <span>Recent Crop Diagnostics Logs ({scanHistory.length})</span>
+                      </h3>
+                    </div>
+
+                    {scanHistory.length === 0 ? (
+                      <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                        <p className="text-xs text-slate-500">No previous crop scan records found in your logbook.</p>
+                        <button
+                          onClick={() => setActiveTab("scan")}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xxs px-4 py-2 rounded-xl transition inline-block shadow-sm"
+                        >
+                          Run First Scan Now
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {scanHistory.map((item) => {
+                          const isExpanded = expandedLogId === item.id;
+                          return (
+                            <div
+                              key={item.id}
+                              id={`log_scan_card_${item.id}`}
+                              className="bg-white rounded-xl border border-slate-200/80 p-4 space-y-3 flex flex-col justify-between hover:shadow-xs transition"
+                            >
+                              <div>
+                                <div className="flex items-start gap-3">
+                                  {item.imageUrl && (
+                                    <img
+                                      src={item.imageUrl}
+                                      alt=""
+                                      className="w-14 h-14 rounded-lg object-cover border border-slate-100 shrink-0"
+                                    />
+                                  )}
+                                  <div className="overflow-hidden space-y-0.5">
+                                    <h4 className="font-display font-black text-slate-800 text-xs truncate">{item.cropName}</h4>
+                                    <p className="text-[11px] font-bold text-emerald-700 truncate">{item.detectedProblem}</p>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[9px] text-slate-400">{item.timestamp}</span>
+                                      <span className="bg-slate-105 text-slate-500 text-[8px] px-1.5 py-0.5 rounded font-bold">
+                                        Conf: {Math.round(item.confidence * 100)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5 text-[11px] text-slate-600 leading-relaxed animate-fade-in">
+                                    <div>
+                                      <strong className="text-[9px] font-bold uppercase text-slate-400 block">Symptoms Observed</strong>
+                                      <ul className="list-disc pl-3 mt-1 space-y-0.5">
+                                        {item.symptoms.map((s, idx) => (
+                                          <li key={idx}>{s}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <strong className="text-[9px] font-bold uppercase text-slate-400 block">Immediate Solutions</strong>
+                                      <ul className="list-disc pl-3 mt-1 text-emerald-800 space-y-0.5">
+                                        {item.immediateTreatment.map((t, idx) => (
+                                          <li key={idx} className="font-medium">{t}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <strong className="text-[9px] font-bold uppercase text-slate-400 block">Prevention</strong>
+                                      <p className="mt-1">{item.prevention.join(". ")}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-50 shrink-0">
+                                <button
+                                  onClick={() => setExpandedLogId(isExpanded ? null : item.id)}
+                                  className="text-emerald-600 hover:text-emerald-700 font-bold text-[10px]"
+                                >
+                                  {isExpanded ? "Collapse Details" : "Expand Full Report"}
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    const filtered = scanHistory.filter(h => h.id !== item.id);
+                                    saveScans(filtered);
+                                  }}
+                                  className="text-red-500 hover:text-red-700 text-[10px] font-medium"
+                                >
+                                  Delete Log
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. QUERIES DISPLAY LOG */}
+                {historySubTab === "queries" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-display font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                        <Mic className="w-4 h-4 text-emerald-600" />
+                        <span>Mitra voice & text consultations queries ({queryHistory.length})</span>
+                      </h3>
+                    </div>
+
+                    {queryHistory.length === 0 ? (
+                      <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                        <p className="text-xs text-slate-500">No previous voice or text query advisor sessions recorded.</p>
+                        <button
+                          onClick={() => setActiveTab("voice")}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xxs px-4 py-2 rounded-xl transition inline-block shadow-sm"
+                        >
+                          Ask Mitra Question
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {queryHistory.map((item) => (
+                          <div
+                            key={item.id}
+                            className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col justify-between hover:shadow-xs transition space-y-3"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between">
+                                <div className="space-y-1">
+                                  <p className="text-xs font-black text-slate-800">"{item.query}"</p>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] text-slate-400">{item.timestamp}</span>
+                                    <span className="bg-emerald-50 text-emerald-800 text-[8px] font-extrabold border border-emerald-100 px-1.5 py-0.5 rounded uppercase">
+                                      {LANGUAGES.find(l => l.code === item.languageSelected)?.name || "English"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {item.audioBytes && (
+                                  <button
+                                    onClick={() => {
+                                      const uri = `data:audio/mp3;base64,${item.audioBytes}`;
+                                      const snd = new Audio(uri);
+                                      snd.play();
+                                    }}
+                                    className="bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0"
+                                  >
+                                    <Volume2 className="w-3 h-3" />
+                                    <span>Replay Advice</span>
+                                  </button>
+                                )}
+                              </div>
+                              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-[11px] leading-relaxed text-slate-700">
+                                <span className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Mitra's AI Advice:</span>
+                                {item.solutionText}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                              <button
+                                onClick={() => {
+                                  const filtered = queryHistory.filter(q => q.id !== item.id);
+                                  saveQueries(filtered);
+                                }}
+                                className="text-red-500 hover:text-red-700 text-[10px] font-medium"
+                              >
+                                Remove Query
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. APPOINTMENTS LOG */}
+                {historySubTab === "appointments" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-display font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4 text-emerald-600" />
+                        <span>Mera Scheduled Expert Appointments ({appointments.length})</span>
+                      </h3>
+                    </div>
+
+                    {appointments.length === 0 ? (
+                      <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                        <p className="text-xs text-slate-500">No scheduled agronomist appointments recorded.</p>
+                        <button
+                          onClick={() => setActiveTab("experts")}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xxs px-4 py-2 rounded-xl transition inline-block shadow-sm"
+                        >
+                          Book Free Call Slot
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {appointments.map((item) => (
+                          <div
+                            key={item.id}
+                            className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col justify-between text-xs space-y-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="bg-emerald-100 text-emerald-800 uppercase text-[9px] font-black px-2 py-0.5 rounded-full">
+                                  Scheduled
+                                </span>
+                                <span className="text-[9px] text-slate-400">{item.id}</span>
+                              </div>
+                              <p className="font-bold text-slate-800">{item.expertName}</p>
+                              <p className="text-[10px] text-slate-500">{item.date} • {item.timeSlot}</p>
+                              {item.notes && (
+                                <p className="text-[10px] italic text-slate-400 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-1">
+                                  "{item.notes}"
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-50 shrink-0">
+                              <button
+                                onClick={() => {
+                                  alert(`Direct Government dialing channel: Ready to connect call with ${item.expertName}.`);
+                                }}
+                                className="text-emerald-700 hover:text-emerald-800 font-bold text-[10px]"
+                              >
+                                Join Consultation Call
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  const filtered = appointments.filter(a => a.id !== item.id);
+                                  saveAppts(filtered);
+                                }}
+                                className="text-red-500 hover:text-red-700 font-bold text-[10px]"
+                              >
+                                Cancel Meeting
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
             </div>
           )}
 
@@ -2103,6 +3465,178 @@ export default function App() {
                 {t("bookButton")}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* REGISTER NEW EXPERT MODAL */}
+      {showAddExpertModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-display font-black text-lg text-slate-800 flex items-center gap-2">
+                <Users className="w-5.5 h-5.5 text-emerald-600" />
+                <span>Register Agricultural Scientist / Expert</span>
+              </h3>
+              <button
+                onClick={() => setShowAddExpertModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewExpert} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Full Name *</label>
+                  <input
+                    id="new_expert_name_input"
+                    type="text"
+                    required
+                    placeholder="Ex: Dr. Devendra Patil"
+                    value={newExpertName}
+                    onChange={(e) => setNewExpertName(e.target.value)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Affiliation / Organization *</label>
+                  <input
+                    id="new_expert_org_input"
+                    type="text"
+                    required
+                    placeholder="Ex: ICAR - National Cotton Institute, Guntur"
+                    value={newExpertOrg}
+                    onChange={(e) => setNewExpertOrg(e.target.value)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Role Type *</label>
+                  <select
+                    id="new_expert_role_input"
+                    value={newExpertRole}
+                    onChange={(e) => setNewExpertRole(e.target.value)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  >
+                    <option value="Krishi Vigyan Kendra (KVK) Scientist">Krishi Vigyan Kendra (KVK) Scientist</option>
+                    <option value="Public Agriculture Extension Officer">Public Agriculture Extension Officer</option>
+                    <option value="Associate Professor (Agriscience Uni)">Associate Professor (Agriscience Uni)</option>
+                    <option value="Private Certified Agronomist">Private Certified Agronomist</option>
+                    <option value="Organic Soil Scientist">Organic Soil Scientist</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Specialty Focus *</label>
+                  <input
+                    id="new_expert_specialty_input"
+                    type="text"
+                    required
+                    placeholder="Ex: Legume Crop Blight & Organic Compost"
+                    value={newExpertSpecialty}
+                    onChange={(e) => setNewExpertSpecialty(e.target.value)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">WhatsApp / Call Phone *</label>
+                  <input
+                    id="new_expert_phone_input"
+                    type="tel"
+                    required
+                    placeholder="+91 98765 43210"
+                    value={newExpertPhone}
+                    onChange={(e) => setNewExpertPhone(e.target.value)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Geographic Spoken Language *</label>
+                  <select
+                    id="new_expert_lang_input"
+                    value={newExpertLang}
+                    onChange={(e) => setNewExpertLang(e.target.value as SupportedLanguage)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  >
+                    {LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.name} ({l.nativeName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Serving Distance (Mock) *</label>
+                  <input
+                    id="new_expert_distance_input"
+                    type="text"
+                    placeholder="Ex: 1.5 km"
+                    value={newExpertDistance}
+                    onChange={(e) => setNewExpertDistance(e.target.value)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Expert Avatar Profile Picture</label>
+                  <select
+                    id="new_expert_avatar_select"
+                    value={newExpertAvatar}
+                    onChange={(e) => setNewExpertAvatar(e.target.value)}
+                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 focus:ring-1 focus:ring-emerald-500 rounded-xl"
+                  >
+                    <option value="">Auto Random Profile Avatar</option>
+                    <option value="https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=150&q=80">Male Doctor/Scientist (Dr. Ramesh style)</option>
+                    <option value="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80">Female Scientific Lead (Smt. Kavitha style)</option>
+                    <option value="https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80">Female Researcher Portrait</option>
+                    <option value="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80">Male Scientist / Officer Head</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 pt-3">
+                  <input
+                    id="new_expert_online_input"
+                    type="checkbox"
+                    checked={newExpertOnline}
+                    onChange={(e) => setNewExpertOnline(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                  />
+                  <label htmlFor="new_expert_online_input" className="text-xs font-bold text-slate-700 selection:bg-none">
+                    Currently Online and Available for live Chat consultations
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddExpertModal(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  id="submit_new_expert_final_btn"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-2.5 rounded-xl transition"
+                >
+                  Confirm Registration
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
