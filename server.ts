@@ -641,6 +641,7 @@ app.post("/api/expert-chat", async (req, res) => {
       config: {
         systemInstruction: systemPrompt,
       },
+      history: contents.slice(0, -1),
     });
 
     // Send only the last message
@@ -766,6 +767,7 @@ app.post("/api/mitra-chat", async (req, res) => {
       config: {
         systemInstruction: systemPrompt,
       },
+      history: contents.slice(0, -1),
     });
 
     const lastMsgInput = messages[messages.length - 1];

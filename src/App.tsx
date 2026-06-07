@@ -542,6 +542,106 @@ const LOCALIZED_EXPERTS: Record<SupportedLanguage, Expert[]> = {
   ]
 };
 
+// Client-side cache memory fallback in case browser cookies/sessionStorage have security policies in iframe
+const _localGeoCache: Record<string, string> = {};
+const _localWeatherCache: Record<string, any> = {};
+
+export const getCachedGeocode = async (lat: number, lng: number, lang: string): Promise<string | null> => {
+  const roundedLat = lat.toFixed(3);
+  const roundedLng = lng.toFixed(3);
+  const cacheKey = `krishi_geo_${roundedLat}_${roundedLng}_${lang}`;
+
+  // Try memory first
+  if (_localGeoCache[cacheKey]) {
+    console.info("[Network Optimizer] Served location geocode from local memory cache:", _localGeoCache[cacheKey]);
+    return _localGeoCache[cacheKey];
+  }
+
+  // Try sessionStorage
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      _localGeoCache[cacheKey] = cached;
+      console.info("[Network Optimizer] Served location geocode from sessionStorage cache:", cached);
+      return cached;
+    }
+  } catch (e) {}
+
+  // Trigger network request
+  try {
+    const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${lang}`);
+    if (response.ok) {
+      const data = await response.json();
+      const city = data.city || data.locality || data.principalSubdivision || "";
+      const country = data.countryName || "";
+      let placeName = "";
+      if (city) {
+        placeName = `${city}${country ? `, ${country}` : ""}`;
+      }
+      if (placeName) {
+        _localGeoCache[cacheKey] = placeName;
+        try {
+          sessionStorage.setItem(cacheKey, placeName);
+        } catch (e) {}
+        return placeName;
+      }
+    }
+  } catch (err) {
+    console.warn("Geocoding fetch failed, fallback to lat/lng representation:", err);
+  }
+  return null;
+};
+
+export const getCachedWeatherAdvice = async (latitude: string, longitude: string, cityName: string, lang: string): Promise<any | null> => {
+  const latNum = parseFloat(latitude) || 0;
+  const lngNum = parseFloat(longitude) || 0;
+  const roundedLat = latNum.toFixed(2);
+  const roundedLng = lngNum.toFixed(2);
+  const cacheKey = `krishi_weather_${roundedLat}_${roundedLng}_${lang}`;
+
+  // Try memory first
+  if (_localWeatherCache[cacheKey]) {
+    const cachedData = _localWeatherCache[cacheKey];
+    if (Date.now() - cachedData.timestamp < 15 * 60 * 1000) { // 15 min TTL cache to remain fresh but avoid duplicate hits
+      console.info("[Network Optimizer] Served weather advice from local memory cache for:", cityName);
+      return cachedData.data;
+    }
+  }
+
+  // Try sessionStorage
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedData = JSON.parse(cached);
+      if (Date.now() - cachedData.timestamp < 15 * 60 * 1000) {
+        _localWeatherCache[cacheKey] = cachedData;
+        console.info("[Network Optimizer] Served weather advice from sessionStorage cache for:", cityName);
+        return cachedData.data;
+      }
+    }
+  } catch (e) {}
+
+  // Trigger network request
+  try {
+    const response = await fetch(`/api/weather-advice?lat=${latitude}&lng=${longitude}&city=${encodeURIComponent(cityName)}&language=${lang}`);
+    if (response.ok) {
+      const data = await response.json();
+      const cacheObj = {
+        timestamp: Date.now(),
+        data
+      };
+      _localWeatherCache[cacheKey] = cacheObj;
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify(cacheObj));
+      } catch (e) {}
+      return data;
+    }
+  } catch (err) {
+    console.warn("Weather fetch failed", err);
+  }
+  return null;
+};
+
 export default function App() {
   // Navigation & Multi-Language Settings
   const [lang, setLang] = useState<SupportedLanguage | null>(null);
@@ -672,16 +772,7 @@ export default function App() {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           try {
-            const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${savedLang || "en"}`);
-            let placeName = `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
-            if (response.ok) {
-              const data = await response.json();
-              const city = data.city || data.locality || data.principalSubdivision || "";
-              const country = data.countryName || "";
-              if (city) {
-                placeName = `${city}${country ? `, ${country}` : ""}`;
-              }
-            }
+            const placeName = await getCachedGeocode(lat, lng, savedLang || "en") || `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
             setSelectedRegion({ 
               name: placeName, 
               lat: lat.toString(), 
@@ -934,16 +1025,15 @@ export default function App() {
     };
   }, []);
 
-  // 1. Weather fetching function
+  // 1. Weather fetching function with network-saving cache lookup
   const fetchWeatherAdvice = async (latitude: string, longitude: string, cityName: string) => {
     setIsWeatherLoading(true);
     setWeatherError(null);
     try {
-      const response = await fetch(`/api/weather-advice?lat=${latitude}&lng=${longitude}&city=${encodeURIComponent(cityName)}&language=${lang || "en"}`);
-      if (!response.ok) {
+      const data = await getCachedWeatherAdvice(latitude, longitude, cityName, lang || "en");
+      if (!data) {
         throw new Error("Local meteorological service failed. Please try again.");
       }
-      const data = await response.json();
       setWeatherData(data);
     } catch (err: any) {
       setWeatherError(err.message || "Could not retrieve meteorological recommendations.");
@@ -952,7 +1042,7 @@ export default function App() {
     }
   };
 
-  // Browser GPS Location detection with reverse geocoding fallback
+  // Browser GPS Location detection with network-saving reverse geocoding cache fallback
   const handleDetectLiveLocation = () => {
     if (!navigator.geolocation) {
       setWeatherError("Geolocation is not supported by your browser.");
@@ -967,17 +1057,8 @@ export default function App() {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         try {
-          // Query the free bigdatacloud open geolocation client to get the exact city/region name
-          const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${lang || "en"}`);
-          let placeName = `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
-          if (response.ok) {
-            const data = await response.json();
-            const city = data.city || data.locality || data.principalSubdivision || "";
-            const country = data.countryName || "";
-            if (city) {
-              placeName = `${city}${country ? `, ${country}` : ""}`;
-            }
-          }
+          // Query cached geocode client to get the exact city/region name with 0 network on repeat
+          const placeName = await getCachedGeocode(lat, lng, lang || "en") || `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
           const liveRegion = { 
             name: placeName, 
             lat: lat.toString(), 
@@ -1009,18 +1090,53 @@ export default function App() {
     );
   };
 
-  // Crop image selector base64 converter
+  // Crop image selector base64 converter with smart client-side compression to save 90%+ network usage!
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      const type = file.type || "image/jpeg";
+      const type = "image/jpeg"; // Convert to JPEG to maximize savings
       setScanImageMime(type);
       reader.onloadend = () => {
-        const base64String = (reader.result as string).split(",")[1];
-        setScanImageBase64(base64String);
-        setScanResult(null);
-        setScanError(null);
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.75); // 75% quality is excellent yet incredibly small (~50-80KB)
+            const base64String = compressedDataUrl.split(",")[1];
+            setScanImageBase64(base64String);
+            setScanResult(null);
+            setScanError(null);
+          } else {
+            // Fallback to raw load if canvas drawing fails
+            const base64String = (reader.result as string).split(",")[1];
+            setScanImageBase64(base64String);
+            setScanResult(null);
+            setScanError(null);
+          }
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -1203,11 +1319,16 @@ export default function App() {
     setIsChatbotResponding(true);
 
     try {
+      // Keep only the last 12 messages in payload to dramatically reduce request payload size over the air
+      const payloadMessages = updatedMessages.length > 12 
+        ? updatedMessages.slice(-12) 
+        : updatedMessages;
+
       const response = await fetch("/api/mitra-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: updatedMessages,
+          messages: payloadMessages,
           language: lang || "en"
         })
       });
@@ -1520,7 +1641,7 @@ export default function App() {
       <header className="bg-gradient-to-r from-emerald-800 to-green-700 text-white shadow-md sticky top-0 z-40 transition-all duration-300" id="header_section">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab("dashboard")}>
-            <div className="bg-white/10 p-0.5 rounded-xl border border-white/20 overflow-hidden shadow-inner shrink-0" id="app_logo_container">
+            <div className="bg-white/10 p-0.5 rounded-xl border border-white/20 overflow-hidden shadow-inner shrink-0 shadow-[0_0_15px_rgba(52,211,153,0.6)]" id="app_logo_container">
               <img 
                 src={aiFarmerShakingImg} 
                 alt="KrishiMitra Handshake Logo" 

@@ -343,6 +343,42 @@ export default function NearbyShopMap({
   const [simRouteDot, setSimRouteDot] = useState<{ x: number; y: number }>({ x: 20, y: 75 });
   const intervalRef = useRef<any>(null);
 
+  // Cache look-ups to bypass physical API network loads
+  const getCachedGeocodeLocal = async (lat: number, lng: number, lang: string): Promise<string | null> => {
+    const roundedLat = lat.toFixed(3);
+    const roundedLng = lng.toFixed(3);
+    const cacheKey = `krishi_geo_${roundedLat}_${roundedLng}_${lang}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        console.info("[Network Optimizer - Shops] Served location geocode from sessionStorage cache:", cached);
+        return cached;
+      }
+    } catch (e) {}
+
+    try {
+      const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${lang}`);
+      if (response.ok) {
+        const data = await response.json();
+        const city = data.city || data.locality || data.principalSubdivision || "";
+        const country = data.countryName || "";
+        let placeName = "";
+        if (city) {
+          placeName = `${city}${country ? `, ${country}` : ""}`;
+        }
+        if (placeName) {
+          try {
+            sessionStorage.setItem(cacheKey, placeName);
+          } catch (e) {}
+          return placeName;
+        }
+      }
+    } catch (err) {
+      console.warn("Geocoding fetch failed in shops map:", err);
+    }
+    return null;
+  };
+
   // Trigger GPS retrieval
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
@@ -361,21 +397,8 @@ export default function NearbyShopMap({
           lng: Number(lng.toFixed(6))
         };
         
-        // Reverse geocoding to get City/Locality name
-        let placeName = `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
-        try {
-          const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${activeLang || "en"}`);
-          if (response.ok) {
-            const data = await response.json();
-            const city = data.city || data.locality || data.principalSubdivision || "";
-            const country = data.countryName || "";
-            if (city) {
-              placeName = `${city}${country ? `, ${country}` : ""}`;
-            }
-          }
-        } catch (err) {
-          console.warn("Failed reverse geocoding in shop map:", err);
-        }
+        // Reverse geocoding with network saving layer
+        const placeName = await getCachedGeocodeLocal(lat, lng, activeLang || "en") || `My Location (${lat.toFixed(2)}, ${lng.toFixed(2)})`;
 
         setFarmerCoords(newCoords);
         setLocationStatus("success");
